@@ -44,8 +44,8 @@ python run_refactored.py --interactive
 
 ```bash
 # 1. 克隆專案
-git clone https://github.com/Scott530810/ambulance-inventory.git
-cd ambulance-inventory
+git clone https://github.com/Scott530810/demo-ai-inventory-query.git
+cd demo-ai-inventory-query
 
 # 2. 安裝依賴
 pip install -r requirements.txt
@@ -221,7 +221,7 @@ git push origin feature/amazing-feature
 如有問題或建議，請：
 
 1. 查看 [文檔](QUICK_START.md)
-2. 開啟 [Issue](https://github.com/Scott530810/ambulance-inventory/issues)
+2. 開啟 [Issue](https://github.com/Scott530810/demo-ai-inventory-query/issues)
 3. 聯繫作者
 
 ## 🔮 未來計劃

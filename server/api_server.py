@@ -1,0 +1,302 @@
+"""
+FastAPI Server for Remote Ambulance Inventory Queries
+可從遠端 Windows 11 筆電連線查詢的 API 服務器
+
+運行方式:
+    uvicorn server.api_server:app --host 0.0.0.0 --port 8000
+
+遠端訪問:
+    http://SPARK_IP:8000/docs
+"""
+
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+import sys
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from ambulance_inventory.config import DatabaseConfig, OllamaConfig
+from ambulance_inventory.database import DatabaseClient
+from ambulance_inventory.ollama_client import OllamaClient
+from ambulance_inventory.query_engine import QueryEngine
+from ambulance_inventory.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="Ambulance Inventory Query API",
+    description="自然語言查詢救護車設備庫存系統 - 遠端 API 版本",
+    version="2.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# CORS configuration for remote access from Windows 11
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify your Windows 11 IP
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Global clients (initialized on startup)
+db_client: Optional[DatabaseClient] = None
+ollama_client: Optional[OllamaClient] = None
+query_engine: Optional[QueryEngine] = None
+
+
+# Pydantic models
+class QueryRequest(BaseModel):
+    """查詢請求"""
+    question: str = Field(..., description="自然語言問題", min_length=1)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "question": "請問AED除顫器還有哪幾款有庫存？"
+            }
+        }
+
+
+class QueryResponse(BaseModel):
+    """查詢回應"""
+    question: str = Field(..., description="原始問題")
+    sql: str = Field(..., description="生成的 SQL 查詢")
+    answer: str = Field(..., description="AI 回答")
+    success: bool = Field(..., description="查詢是否成功")
+    error: Optional[str] = Field(None, description="錯誤訊息（如果有）")
+
+
+class HealthResponse(BaseModel):
+    """健康檢查回應"""
+    status: str
+    database: bool
+    ollama: bool
+    model: str
+    version: str
+
+
+class TableInfo(BaseModel):
+    """資料表資訊"""
+    table_name: str
+    columns: List[Dict[str, str]]
+
+
+@app.on_event("startup")
+async def startup_event():
+    """服務器啟動時初始化"""
+    global db_client, ollama_client, query_engine
+
+    try:
+        logger.info("🚀 Initializing API server...")
+
+        # Initialize database client
+        db_config = DatabaseConfig.from_env()
+        db_client = DatabaseClient(db_config)
+        logger.info("✅ Database client initialized")
+
+        # Initialize Ollama client
+        ollama_config = OllamaConfig.from_env()
+        ollama_client = OllamaClient(ollama_config)
+        logger.info(f"✅ Ollama client initialized (model: {ollama_config.model})")
+
+        # Initialize query engine
+        query_engine = QueryEngine(db_client, ollama_client)
+        logger.info("✅ Query engine initialized")
+
+        logger.info("🎉 API server ready for remote connections!")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize server: {e}")
+        raise
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """服務器關閉時清理"""
+    global db_client
+
+    if db_client:
+        db_client.close()
+        logger.info("Database connection closed")
+
+
+@app.get("/", tags=["General"])
+async def root():
+    """根端點"""
+    return {
+        "message": "Ambulance Inventory Query API",
+        "version": "2.1.0",
+        "model": "qwen3:30b",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+
+@app.get("/health", response_model=HealthResponse, tags=["General"])
+async def health_check():
+    """
+    健康檢查端點
+
+    檢查資料庫和 Ollama 連接狀態
+    """
+    try:
+        # Check database
+        db_ok = db_client.test_connection() if db_client else False
+
+        # Check Ollama
+        ollama_ok = ollama_client.test_connection() if ollama_client else False
+
+        model_name = ollama_client.config.model if ollama_client else "unknown"
+
+        status = "healthy" if (db_ok and ollama_ok) else "unhealthy"
+
+        return HealthResponse(
+            status=status,
+            database=db_ok,
+            ollama=ollama_ok,
+            model=model_name,
+            version="2.1.0"
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
+
+
+@app.post("/query", response_model=QueryResponse, tags=["Query"])
+async def query(request: QueryRequest):
+    """
+    執行自然語言查詢
+
+    接收自然語言問題，生成 SQL，執行查詢，返回回答
+
+    Args:
+        request: 包含問題的查詢請求
+
+    Returns:
+        QueryResponse: 包含 SQL、答案等資訊
+    """
+    if not query_engine:
+        raise HTTPException(status_code=503, detail="Query engine not initialized")
+
+    try:
+        logger.info(f"📝 Received query: {request.question}")
+
+        # Execute query
+        sql, answer = query_engine.query(request.question)
+
+        logger.info(f"✅ Query successful")
+
+        return QueryResponse(
+            question=request.question,
+            sql=sql,
+            answer=answer,
+            success=True,
+            error=None
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Query failed: {e}")
+        return QueryResponse(
+            question=request.question,
+            sql="",
+            answer="",
+            success=False,
+            error=str(e)
+        )
+
+
+@app.get("/tables", response_model=List[TableInfo], tags=["Database"])
+async def get_tables():
+    """
+    取得資料表結構資訊
+
+    Returns:
+        List[TableInfo]: 所有資料表及其欄位資訊
+    """
+    if not db_client:
+        raise HTTPException(status_code=503, detail="Database client not initialized")
+
+    try:
+        tables_info = []
+
+        # Get table schema
+        schema_query = """
+        SELECT
+            table_name,
+            column_name,
+            data_type,
+            is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+        ORDER BY table_name, ordinal_position;
+        """
+
+        rows = db_client.execute_query(schema_query)
+
+        # Group by table
+        from collections import defaultdict
+        tables_dict = defaultdict(list)
+
+        for row in rows:
+            tables_dict[row[0]].append({
+                "column_name": row[1],
+                "data_type": row[2],
+                "nullable": row[3]
+            })
+
+        # Convert to TableInfo list
+        for table_name, columns in tables_dict.items():
+            tables_info.append(TableInfo(
+                table_name=table_name,
+                columns=columns
+            ))
+
+        return tables_info
+
+    except Exception as e:
+        logger.error(f"Failed to get tables: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get tables: {str(e)}")
+
+
+@app.get("/demo-queries", tags=["Query"])
+async def get_demo_queries():
+    """
+    取得 Demo 查詢範例
+
+    Returns:
+        List[str]: Demo 查詢列表
+    """
+    demo_queries = [
+        "請問AED除顫器還有哪幾款有庫存？",
+        "請問輪椅有哪些品牌？",
+        "請問救護車擔架有哪些型號？",
+        "請問有哪些設備的庫存數量少於10件？",
+        "請問設備表中有哪些類別？"
+    ]
+
+    return {
+        "demo_queries": demo_queries,
+        "usage": "使用 POST /query 端點執行這些查詢"
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    print("🚀 Starting API Server...")
+    print("📖 API Documentation: http://localhost:8000/docs")
+    print("🔍 Health Check: http://localhost:8000/health")
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",  # Listen on all interfaces for remote access
+        port=8000,
+        log_level="info"
+    )

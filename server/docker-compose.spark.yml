@@ -1,0 +1,71 @@
+# Docker Compose for DGX SPARK Deployment
+# Complete stack: PostgreSQL + API Server
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ambulance-db-spark
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ambulance_db
+      POSTGRES_USER: ambulance
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../ambulance_equipment.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ambulance -d ambulance_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Server
+  api:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile.spark
+    container_name: ambulance-api-spark
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ambulance_db
+      DB_USER: ambulance
+      DB_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
+
+      # Ollama (running on host)
+      OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_MODEL: qwen3:30b
+      OLLAMA_TIMEOUT: 120
+
+      # API
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: ambulance-network

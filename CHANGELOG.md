@@ -1,5 +1,74 @@
 # 更新日誌
 
+## [2.1.0] - 2026-01-17
+
+### 🌐 重大更新：遠端 API 部署
+
+新增 DGX SPARK 服務器部署支援，可從 Windows 11 筆電遠端連線使用
+
+---
+
+## ✨ 新增功能
+
+### FastAPI 遠端服務器
+- ✅ 創建 FastAPI API 服務器 (`server/api_server.py`)
+- ✅ RESTful API 端點：`/query`, `/health`, `/tables`
+- ✅ Swagger UI 文檔 (`/docs`)
+- ✅ CORS 支援，允許遠端連線
+- ✅ 完整的錯誤處理和日誌記錄
+
+### 服務器部署工具
+- ✅ 部署腳本 (`server/deploy_to_spark.sh`)
+- ✅ Systemd 服務配置
+- ✅ Docker 配置 (`server/Dockerfile.spark`, `docker-compose.spark.yml`)
+- ✅ 環境變數模板和配置指南
+
+### Windows 11 客戶端
+- ✅ PowerShell 客戶端 (`client/connect_to_spark.ps1`)
+- ✅ Python 客戶端 (`client/spark_client.py`)
+- ✅ SSH 隧道工具 (`client/ssh_tunnel.ps1`)
+- ✅ 互動模式和單次查詢支援
+- ✅ 連接測試和健康檢查
+
+### 文檔
+- ✅ [DGX_SPARK_DEPLOYMENT.md](DGX_SPARK_DEPLOYMENT.md) - 完整部署指南
+- ✅ [SPARK_QUICK_START.md](SPARK_QUICK_START.md) - 5 分鐘快速設置
+- ✅ 包含架構圖、安全建議、故障排除
+
+### 部署方式
+- ✅ 直接 HTTP 連線（內網）
+- ✅ SSH 隧道（外網/加密）
+- ✅ Docker 容器化部署
+
+---
+
+## 🔧 改進
+
+### 安全性
+- ✅ 防火牆配置指南
+- ✅ IP 白名單支援
+- ✅ API 金鑰認證建議
+- ✅ 限流（Rate Limiting）建議
+- ✅ HTTPS/SSL 配置指南
+
+### 監控和維護
+- ✅ 系統日誌管理
+- ✅ 性能監控指南
+- ✅ 自動化備份建議
+
+---
+
+## 📊 架構更新
+
+新增遠端部署架構：
+
+```
+Windows 11 筆電 ←→ Internet/LAN ←→ DGX SPARK 服務器
+    (Client)                         (FastAPI + DB + Ollama)
+```
+
+---
+
 ## [2.0.0] - 2026-01-14
 
 ### 🎉 重大更新：代碼重構

@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.0-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.1.0-brightgreen)](CHANGELOG.md)
 
 一個基於自然語言的救護車設備庫存查詢系統，使用本地 Ollama (qwen3:30b) 模型實現 SQL 生成和智能回答。
 
@@ -12,6 +12,7 @@
 - 🔒 **安全驗證** - SQL 注入防護和危險操作檢測
 - 📦 **模組化架構** - 11 個獨立模組，易於維護和擴展
 - 🐳 **Docker 支援** - 一鍵部署，包含完整環境
+- 🌐 **遠端 API** - FastAPI 服務器，支援 Windows 11 遠端連線
 - 📝 **完整類型提示** - IDE 自動補全支援
 - 📊 **日誌系統** - 結構化日誌記錄
 - 🔄 **向後兼容** - 保留舊版本代碼
@@ -78,13 +79,37 @@ docker-compose -f docker-compose.ollama.yml up -d
 docker exec -it ambulance-query-ollama python run_refactored.py --interactive
 ```
 
+### 🌐 遠端部署 (DGX SPARK Server)
+
+**從 Windows 11 筆電連線到 SPARK 服務器:**
+
+```bash
+# 在 SPARK 服務器上部署
+cd /opt
+git clone https://github.com/Scott530810/demo-ai-inventory-query.git
+cd demo-ai-inventory-query
+docker-compose -f server/docker-compose.spark.yml up -d
+
+# 在 Windows 11 筆電上連接
+.\client\connect_to_spark.ps1 -SparkIP YOUR_SPARK_IP
+```
+
+**詳見:**
+- [🚀 SPARK_QUICK_START.md](SPARK_QUICK_START.md) - 5 分鐘快速設置
+- [🖥️ DGX_SPARK_DEPLOYMENT.md](DGX_SPARK_DEPLOYMENT.md) - 完整部署指南
+
 ## 📚 文檔
 
+### 基礎文檔
 - [📖 QUICK_START.md](QUICK_START.md) - 快速入門指南
 - [🏗️ ARCHITECTURE.md](ARCHITECTURE.md) - 系統架構設計
 - [🔄 REFACTOR_GUIDE.md](REFACTOR_GUIDE.md) - 重構完整說明
 - [🐳 DOCKER_GUIDE.md](DOCKER_GUIDE.md) - Docker 使用指南
 - [📝 CHANGELOG.md](CHANGELOG.md) - 版本更新記錄
+
+### 遠端部署文檔
+- [🚀 SPARK_QUICK_START.md](SPARK_QUICK_START.md) - SPARK 5 分鐘快速設置
+- [🖥️ DGX_SPARK_DEPLOYMENT.md](DGX_SPARK_DEPLOYMENT.md) - DGX SPARK 完整部署指南
 
 ## 🏗️ 架構概覽
 
@@ -227,12 +252,14 @@ git push origin feature/amazing-feature
 ## 🔮 未來計劃
 
 - [ ] 添加單元測試（pytest）
-- [ ] Web API (FastAPI)
+- [x] Web API (FastAPI) ✅ v2.1.0
+- [x] 遠端訪問支援 ✅ v2.1.0
 - [ ] 前端介面 (React/Vue)
 - [ ] 查詢快取 (Redis)
 - [ ] 非同步支援 (asyncio)
 - [ ] 數據視覺化
 - [ ] 多語言支援
+- [ ] API 認證和授權
 
 ## 📈 版本歷史
 
@@ -242,4 +269,4 @@ git push origin feature/amazing-feature
 
 **⭐ 如果這個專案對您有幫助，請給個 Star！**
 
-**版本**: 2.0.0 | **日期**: 2026-01-14 | **模型**: qwen3:30b
+**版本**: 2.1.0 | **日期**: 2026-01-17 | **模型**: qwen3:30b | **部署**: 本機 + 遠端 (DGX SPARK)

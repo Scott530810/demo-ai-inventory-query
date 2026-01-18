@@ -1,8 +1,7 @@
 # Windows 11 Client - Connect to DGX SPARK Server
-# 從 Windows 11 筆電連線到 SPARK 服務器
 
 param(
-    [string]$SparkIP = "SPARK_IP_HERE",  # 替換為實際的 SPARK IP
+    [string]$SparkIP = "SPARK_IP_HERE",
     [int]$Port = 8000,
     [string]$Question = ""
 )
@@ -10,7 +9,6 @@ param(
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# Colors
 function Write-ColorOutput {
     param(
         [string]$Message,
@@ -23,21 +21,18 @@ Write-ColorOutput "[Client] Ambulance Inventory Query - Windows 11" "Cyan"
 Write-ColorOutput "Connecting to SPARK Server: ${SparkIP}:${Port}" "Yellow"
 Write-ColorOutput ("=" * 60) "Gray"
 
-# Check if SPARK IP is configured
 if ($SparkIP -eq "SPARK_IP_HERE") {
     Write-ColorOutput "[Error] Please configure SPARK_IP first!" "Red"
     Write-ColorOutput "Usage: .\connect_to_spark.ps1 -SparkIP 192.168.x.x" "Yellow"
     exit 1
 }
 
-# API endpoints
 $BaseURL = "http://${SparkIP}:${Port}"
 $HealthURL = "${BaseURL}/health"
 $QueryURL = "${BaseURL}/query"
 $ModelsURL = "${BaseURL}/api/models"
 $DocsURL = "${BaseURL}/docs"
 
-# Function: Test connection
 function Test-SparkConnection {
     Write-ColorOutput "`n[Check] Testing connection to SPARK server..." "Yellow"
 
@@ -52,23 +47,20 @@ function Test-SparkConnection {
             Write-ColorOutput "   Version: $($response.version)" "White"
             return $true
         } else {
-            Write-ColorOutput "[Warning] Server is unhealthy" "Yellow"
+            Write-ColorOutput "[Warning] Server is unhealthy - Ollama may not be running" "Yellow"
+            Write-ColorOutput "   Database: $(if($response.database){'OK'}else{'FAIL'})" "White"
+            Write-ColorOutput "   Ollama: $(if($response.ollama){'OK'}else{'FAIL'})" "White"
+            Write-ColorOutput "   Model: $($response.model)" "White"
             return $false
         }
     }
     catch {
         Write-ColorOutput "[Error] Failed to connect to SPARK server" "Red"
         Write-ColorOutput "   Error: $($_.Exception.Message)" "Red"
-        Write-ColorOutput "`n[Troubleshooting]:" "Yellow"
-        Write-ColorOutput "   1. Check if SPARK IP is correct: $SparkIP" "White"
-        Write-ColorOutput "   2. Ensure API server is running on SPARK" "White"
-        Write-ColorOutput "   3. Check firewall allows port $Port" "White"
-        Write-ColorOutput "   4. Test: Test-NetConnection -ComputerName $SparkIP -Port $Port" "White"
         return $false
     }
 }
 
-# Function: Send query
 function Send-Query {
     param([string]$QuestionText)
 
@@ -105,7 +97,6 @@ function Send-Query {
     }
 }
 
-# Function: Show available models
 function Show-Models {
     Write-ColorOutput "`n[Models] Getting available models..." "Yellow"
 
@@ -123,10 +114,9 @@ function Show-Models {
     }
 }
 
-# Function: Interactive mode
 function Start-InteractiveMode {
     Write-ColorOutput "`n[Interactive Mode] Started" "Cyan"
-    Write-ColorOutput "Commands: 'exit' to quit, 'models' to see available models" "Yellow"
+    Write-ColorOutput "Commands: exit to quit, models to see available models, help for examples" "Yellow"
     Write-ColorOutput ("=" * 60) "Gray"
 
     while ($true) {
@@ -157,17 +147,15 @@ function Start-InteractiveMode {
     }
 }
 
-# Function: Show demo queries
 function Show-DemoQueries {
     Write-ColorOutput "`n[Demo Queries]:" "Yellow"
-    Write-ColorOutput "1. AED除顫器有庫存嗎" "White"
-    Write-ColorOutput "2. 輪椅有哪些品牌" "White"
-    Write-ColorOutput "3. 擔架有哪些型號" "White"
-    Write-ColorOutput "4. 哪些設備庫存少於10件" "White"
-    Write-ColorOutput "5. 設備有哪些類別" "White"
+    Write-ColorOutput "1. AED has stock?" "White"
+    Write-ColorOutput "2. What wheelchair brands?" "White"
+    Write-ColorOutput "3. What stretcher models?" "White"
+    Write-ColorOutput "4. Equipment with stock less than 10?" "White"
+    Write-ColorOutput "5. What equipment categories?" "White"
 }
 
-# Function: Open API documentation
 function Open-APIDocs {
     Write-ColorOutput "`n[Browser] Opening API Documentation..." "Yellow"
     Start-Process $DocsURL
@@ -180,18 +168,15 @@ Write-ColorOutput "   Port: $Port" "White"
 Write-ColorOutput "   Health Check: $HealthURL" "White"
 Write-ColorOutput "   API Docs: $DocsURL" "White"
 
-# Test connection first
-if (-not (Test-SparkConnection)) {
-    exit 1
-}
+$connected = Test-SparkConnection
 
-# If question provided via parameter, use it
 if ($Question) {
-    Send-Query -QuestionText $Question
+    if ($connected) {
+        Send-Query -QuestionText $Question
+    }
 } else {
-    # Show menu
     Write-ColorOutput "`n[Menu] Choose an option:" "Cyan"
-    Write-ColorOutput "1. Interactive mode (recommended)" "White"
+    Write-ColorOutput "1. Interactive mode" "White"
     Write-ColorOutput "2. Show demo queries" "White"
     Write-ColorOutput "3. Show available models" "White"
     Write-ColorOutput "4. Open API documentation" "White"

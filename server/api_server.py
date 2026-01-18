@@ -199,6 +199,16 @@ async def query(request: QueryRequest):
     if not query_engine:
         raise HTTPException(status_code=503, detail="Query engine not initialized")
 
+    # Check Ollama connection first
+    if ollama_client and not ollama_client.test_connection():
+        return QueryResponse(
+            question=request.question,
+            sql="",
+            answer="",
+            success=False,
+            error="Ollama service is not available. Please ensure Ollama is running on the server."
+        )
+
     try:
         # Temporarily switch model if specified
         original_model = None
@@ -217,6 +227,16 @@ async def query(request: QueryRequest):
         # Restore original model if it was changed
         if original_model:
             ollama_client.config.model = original_model
+
+        # Handle None values (Ollama might have failed silently)
+        if sql is None or answer is None:
+            return QueryResponse(
+                question=request.question,
+                sql=sql or "",
+                answer=answer or "",
+                success=False,
+                error="Query failed - Ollama may not be responding. Check if Ollama service is running."
+            )
 
         logger.info(f"✅ Query successful")
 

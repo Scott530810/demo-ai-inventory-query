@@ -16,7 +16,7 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ../ambulance_equipment.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ../ambulance_inventory_demo.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -45,7 +45,7 @@ services:
 
       # Ollama (running on host)
       OLLAMA_HOST: http://host.docker.internal:11434
-      OLLAMA_MODEL: qwen3:30b
+      OLLAMA_MODEL: llama3:70b
       OLLAMA_TIMEOUT: 120
 
       # API

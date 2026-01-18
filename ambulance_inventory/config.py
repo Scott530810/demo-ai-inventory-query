@@ -51,7 +51,7 @@ class OllamaConfig:
         """從環境變數載入配置"""
         return cls(
             host=os.getenv('OLLAMA_HOST', 'http://host.docker.internal:11434'),
-            model=os.getenv('OLLAMA_MODEL', 'qwen3:30b'),
+            model=os.getenv('OLLAMA_MODEL', 'llama3:70b'),
             timeout=int(os.getenv('OLLAMA_TIMEOUT', '120'))
         )
 

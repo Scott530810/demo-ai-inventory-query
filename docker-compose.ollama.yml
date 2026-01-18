@@ -5,7 +5,7 @@ services:
     container_name: ambulance-db-ollama
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: demo123
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-demo123}
       POSTGRES_DB: ambulance_inventory
     ports:
       - "5432:5432"
@@ -35,10 +35,10 @@ services:
       DB_PORT: 5432
       DB_NAME: ambulance_inventory
       DB_USER: postgres
-      DB_PASSWORD: demo123
+      DB_PASSWORD: ${DB_PASSWORD:-demo123}
       # Ollama 設定
       OLLAMA_HOST: http://host.docker.internal:11434
-      OLLAMA_MODEL: qwen3:30b
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:70b}
       OLLAMA_TIMEOUT: 120
     # 讓容器能訪問主機的 Ollama
     extra_hosts:

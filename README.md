@@ -1,272 +1,162 @@
-# 🚑 Ambulance Inventory Query System
+# Ambulance Inventory Query System
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.1.0-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.1.0-brightgreen)](docs/CHANGELOG.md)
 
-一個基於自然語言的救護車設備庫存查詢系統，使用本地 Ollama (qwen3:30b) 模型實現 SQL 生成和智能回答。
+基於自然語言的救護車設備庫存查詢系統，使用本地 Ollama 模型實現 SQL 生成和智能回答。
 
-## ✨ 特色功能
+## 特色功能
 
-- 🤖 **自然語言查詢** - 使用中文提問，自動生成 SQL
-- 🔒 **安全驗證** - SQL 注入防護和危險操作檢測
-- 📦 **模組化架構** - 11 個獨立模組，易於維護和擴展
-- 🐳 **Docker 支援** - 一鍵部署，包含完整環境
-- 🌐 **遠端 API** - FastAPI 服務器，支援 Windows 11 遠端連線
-- 📝 **完整類型提示** - IDE 自動補全支援
-- 📊 **日誌系統** - 結構化日誌記錄
-- 🔄 **向後兼容** - 保留舊版本代碼
+- **自然語言查詢** - 使用中文提問，自動生成 SQL
+- **動態模型選擇** - 支援切換任意 Ollama 模型
+- **模組化架構** - 11 個獨立模組，易於維護
+- **Docker 支援** - 一鍵部署
+- **遠端 API** - FastAPI 服務器，支援遠端連線
+- **安全驗證** - SQL 注入防護和危險操作檢測
 
-## 🎬 快速演示
+## 快速演示
 
 ```bash
-# 互動模式
 python run_refactored.py --interactive
 
 # 提問範例
-💭 請問AED除顫器還有哪幾款有庫存？
+請輸入您的問題: 請問AED除顫器還有哪幾款有庫存？
 
-# AI 會自動：
-# 1. 生成 SQL 查詢
-# 2. 執行查詢
-# 3. 用友善的方式回答
+# AI 會自動生成 SQL、執行查詢、返回結果
 ```
-
-## 🚀 快速開始
-
-### 前置需求
-
-- Python 3.11+
-- PostgreSQL 15+
-- Ollama (運行中)
-- qwen3:30b 模型
-
-### 安裝步驟
-
-```bash
-# 1. 克隆專案
-git clone https://github.com/Scott530810/demo-ai-inventory-query.git
-cd demo-ai-inventory-query
-
-# 2. 安裝依賴
-pip install -r requirements.txt
-
-# 3. 下載 Ollama 模型（如果還沒有）
-ollama pull qwen3:30b
-
-# 4. 設定 Ollama 允許外部訪問
-# Windows PowerShell (管理員)
-[Environment]::SetEnvironmentVariable("OLLAMA_HOST", "0.0.0.0", "User")
-# 重啟 Ollama
-
-# 5. 運行系統檢查
-python run_refactored.py --check
-
-# 6. 開始使用！
-python run_refactored.py --interactive
-```
-
-### Docker 快速啟動
-
-```bash
-# 1. 確保 Ollama 在主機上運行
-ollama list  # 確認 qwen3:30b 已安裝
-
-# 2. 啟動所有服務
-docker-compose -f docker-compose.ollama.yml up -d
-
-# 3. 進入互動模式
-docker exec -it ambulance-query-ollama python run_refactored.py --interactive
-```
-
-### 🌐 遠端部署 (DGX SPARK Server)
-
-**從 Windows 11 筆電連線到 SPARK 服務器:**
-
-```bash
-# 在 SPARK 服務器上部署
-cd /opt
-git clone https://github.com/Scott530810/demo-ai-inventory-query.git
-cd demo-ai-inventory-query
-docker-compose -f server/docker-compose.spark.yml up -d
-
-# 在 Windows 11 筆電上連接
-.\client\connect_to_spark.ps1 -SparkIP YOUR_SPARK_IP
-```
-
-**詳見:**
-- [🚀 SPARK_QUICK_START.md](SPARK_QUICK_START.md) - 5 分鐘快速設置
-- [🖥️ DGX_SPARK_DEPLOYMENT.md](DGX_SPARK_DEPLOYMENT.md) - 完整部署指南
-
-## 📚 文檔
-
-### 基礎文檔
-- [📖 QUICK_START.md](QUICK_START.md) - 快速入門指南
-- [🏗️ ARCHITECTURE.md](ARCHITECTURE.md) - 系統架構設計
-- [🔄 REFACTOR_GUIDE.md](REFACTOR_GUIDE.md) - 重構完整說明
-- [🐳 DOCKER_GUIDE.md](DOCKER_GUIDE.md) - Docker 使用指南
-- [📝 CHANGELOG.md](CHANGELOG.md) - 版本更新記錄
-
-### 遠端部署文檔
-- [🚀 SPARK_QUICK_START.md](SPARK_QUICK_START.md) - SPARK 5 分鐘快速設置
-- [🖥️ DGX_SPARK_DEPLOYMENT.md](DGX_SPARK_DEPLOYMENT.md) - DGX SPARK 完整部署指南
-
-## 🏗️ 架構概覽
-
-```
-ambulance_inventory/
-├── config.py           # 配置管理 (Dataclass)
-├── database.py         # PostgreSQL 資料庫操作
-├── ollama_client.py    # Ollama API 客戶端
-├── query_engine.py     # 查詢引擎 (NL → SQL → Response)
-├── main.py             # 主程式入口
-├── ui/                 # 使用者介面
-│   ├── checker.py     # 系統檢查
-│   ├── demo.py        # Demo 模式
-│   └── interactive.py # 互動模式
-└── utils/              # 工具函數
-    ├── logger.py      # 日誌系統
-    └── validators.py  # SQL 驗證和安全檢查
-```
-
-## 🎯 使用模式
-
-### 系統檢查
-
-```bash
-python run_refactored.py --check
-```
-
-檢查資料庫連接、Ollama 連接、模型可用性和推理能力。
-
-### Demo 模式
-
-```bash
-python run_refactored.py --demo
-```
-
-執行 5 個預設查詢範例，展示系統功能。
-
-### 互動模式
-
-```bash
-python run_refactored.py --interactive
-```
-
-自由提問，即時回答。
-
-### Python API
-
-```python
-from ambulance_inventory.query_engine import QueryEngine
-from ambulance_inventory.config import DatabaseConfig, OllamaConfig
-from ambulance_inventory.database import DatabaseClient
-from ambulance_inventory.ollama_client import OllamaClient
-
-# 初始化
-db_config = DatabaseConfig.from_env()
-ollama_config = OllamaConfig.from_env()
-db_client = DatabaseClient(db_config)
-ollama_client = OllamaClient(ollama_config)
-query_engine = QueryEngine(db_client, ollama_client)
-
-# 執行查詢
-sql, answer = query_engine.query("請問AED除顫器還有哪幾款有庫存？")
-print(answer)
-```
-
-## 🔒 安全特性
-
-- ✅ **SQL 驗證** - 只允許 SELECT 查詢
-- ✅ **危險操作檢測** - 阻止 DROP、DELETE、TRUNCATE 等
-- ✅ **SQL 注入防護** - 自動檢測和清理
-- ✅ **輸入驗證** - 完整的參數驗證
-
-## 🛠️ 技術棧
-
-- **語言**: Python 3.11+
-- **資料庫**: PostgreSQL 15+
-- **LLM**: Ollama (qwen3:30b)
-- **容器化**: Docker + Docker Compose
-- **依賴管理**: pip
-
-## 📊 系統需求
-
-### 硬體
-
-- **CPU**: 建議 4 核心以上
-- **RAM**: 16GB 以上
-- **GPU**: NVIDIA GPU (8GB+ VRAM) 用於 Ollama
-- **儲存**: 30GB+ 可用空間
-
-### 軟體
-
-- Python 3.11+
-- PostgreSQL 15+
-- Docker & Docker Compose (選用)
-- Ollama
-- Windows 10/11 或 Linux
-
-## 🤝 貢獻
-
-歡迎提交 Pull Requests 或開 Issues！
-
-### 開發指南
-
-```bash
-# 1. Fork 專案
-# 2. 創建功能分支
-git checkout -b feature/amazing-feature
-
-# 3. 提交更改
-git commit -m "Add amazing feature"
-
-# 4. 推送到分支
-git push origin feature/amazing-feature
-
-# 5. 開啟 Pull Request
-```
-
-## 📝 授權
-
-本專案採用 MIT 授權 - 詳見 [LICENSE](LICENSE) 文件
-
-## 👨‍💻 作者
-
-- **Scott** - [Scott530810](https://github.com/Scott530810)
-
-## 🙏 致謝
-
-- [Ollama](https://ollama.ai/) - 本地 LLM 運行環境
-- [Qwen](https://github.com/QwenLM/Qwen) - 強大的中文語言模型
-- [PostgreSQL](https://www.postgresql.org/) - 可靠的資料庫系統
-
-## 📞 支援
-
-如有問題或建議，請：
-
-1. 查看 [文檔](QUICK_START.md)
-2. 開啟 [Issue](https://github.com/Scott530810/demo-ai-inventory-query/issues)
-3. 聯繫作者
-
-## 🔮 未來計劃
-
-- [ ] 添加單元測試（pytest）
-- [x] Web API (FastAPI) ✅ v2.1.0
-- [x] 遠端訪問支援 ✅ v2.1.0
-- [ ] 前端介面 (React/Vue)
-- [ ] 查詢快取 (Redis)
-- [ ] 非同步支援 (asyncio)
-- [ ] 數據視覺化
-- [ ] 多語言支援
-- [ ] API 認證和授權
-
-## 📈 版本歷史
-
-查看 [CHANGELOG.md](CHANGELOG.md) 了解詳細的版本更新記錄。
 
 ---
 
-**⭐ 如果這個專案對您有幫助，請給個 Star！**
+## 兩種部署方式
 
-**版本**: 2.1.0 | **日期**: 2026-01-17 | **模型**: qwen3:30b | **部署**: 本機 + 遠端 (DGX SPARK)
+### 方式 1: Windows 11 本地部署
+
+適用於在本地 Windows 11 電腦上運行 Ollama。
+
+```powershell
+# 1. 確保 Ollama 運行並下載模型
+ollama pull llama3:70b
+
+# 2. 設定 Ollama 允許外部訪問
+[Environment]::SetEnvironmentVariable("OLLAMA_HOST", "0.0.0.0", "User")
+# 重啟 Ollama
+
+# 3. 啟動系統
+.\run-ollama.ps1
+```
+
+**詳見:** [docs/WIN11_LOCAL.md](docs/WIN11_LOCAL.md)
+
+### 方式 2: DGX SPARK 遠端部署
+
+適用於從 Windows 11 筆電連線到遠端 SPARK 服務器。
+
+```bash
+# 在 SPARK 服務器上
+cd /opt
+git clone https://github.com/Scott530810/demo-ai-inventory-query.git
+cd demo-ai-inventory-query
+docker compose -f server/docker-compose.spark.yml up -d
+```
+
+```powershell
+# 在 Windows 11 筆電上
+.\client\connect_to_spark.ps1 -SparkIP YOUR_SPARK_IP
+```
+
+**詳見:** [docs/SPARK_DEPLOYMENT.md](docs/SPARK_DEPLOYMENT.md)
+
+---
+
+## 模型選擇
+
+系統支援動態切換 Ollama 上任何可用的模型：
+
+**互動模式:**
+```
+請輸入您的問題: models
+當前模型: llama3:70b
+可用模型:
+  1. llama3:70b <-- 當前
+  2. llama3:8b
+  3. qwen2.5:32b
+請選擇模型編號: 2
+已切換模型: llama3:70b -> llama3:8b
+```
+
+**API 端點:**
+```bash
+# 取得可用模型
+curl http://localhost:8000/api/models
+
+# 切換模型
+curl -X POST http://localhost:8000/api/models/select \
+     -H "Content-Type: application/json" \
+     -d '{"model": "llama3:8b"}'
+
+# 單次查詢使用指定模型
+curl -X POST http://localhost:8000/query \
+     -H "Content-Type: application/json" \
+     -d '{"question": "AED有庫存嗎?", "model": "llama3:8b"}'
+```
+
+---
+
+## 文檔
+
+| 文檔 | 說明 |
+|------|------|
+| [docs/WIN11_LOCAL.md](docs/WIN11_LOCAL.md) | Windows 11 本地部署指南 |
+| [docs/SPARK_DEPLOYMENT.md](docs/SPARK_DEPLOYMENT.md) | DGX SPARK 遠端部署指南 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系統架構設計 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 版本更新記錄 |
+
+---
+
+## 專案結構
+
+```
+demo-ai-inventory-query/
+├── ambulance_inventory/        # 核心模組
+│   ├── config.py              # 配置管理
+│   ├── database.py            # PostgreSQL 操作
+│   ├── ollama_client.py       # Ollama API
+│   ├── query_engine.py        # 查詢引擎
+│   └── ui/                    # 使用者介面
+├── server/                     # SPARK 部署
+│   ├── api_server.py          # FastAPI 服務器
+│   └── docker-compose.spark.yml
+├── client/                     # Windows 11 客戶端
+│   ├── connect_to_spark.ps1
+│   └── spark_client.py
+├── docs/                       # 文檔
+├── docker-compose.ollama.yml   # 本地 Docker 配置
+├── run-ollama.ps1              # PowerShell 啟動腳本
+└── run_refactored.py           # Python 入口
+```
+
+---
+
+## 系統需求
+
+**硬體:**
+- CPU: 4 核心以上
+- RAM: 16GB 以上
+- GPU: NVIDIA GPU (建議 8GB+ VRAM)
+
+**軟體:**
+- Python 3.11+
+- PostgreSQL 15+
+- Ollama
+- Docker (選用)
+
+---
+
+## 授權
+
+MIT License - 詳見 [LICENSE](LICENSE)
+
+---
+
+**版本**: 2.1.0 | **日期**: 2026-01-18 | **模型**: llama3:70b (可切換)

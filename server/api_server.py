@@ -55,13 +55,26 @@ query_engine: Optional[QueryEngine] = None
 class QueryRequest(BaseModel):
     """查詢請求"""
     question: str = Field(..., description="自然語言問題", min_length=1)
+    model: Optional[str] = Field(None, description="使用的模型（可選，不指定則使用當前模型）")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "question": "請問AED除顫器還有哪幾款有庫存？"
+                "question": "請問AED除顫器還有哪幾款有庫存？",
+                "model": "llama3:70b"
             }
         }
+
+
+class ModelsResponse(BaseModel):
+    """模型列表回應"""
+    models: List[str] = Field(..., description="可用模型列表")
+    current: str = Field(..., description="當前使用的模型")
+
+
+class ModelSelectRequest(BaseModel):
+    """模型選擇請求"""
+    model: str = Field(..., description="要使用的模型名稱")
 
 
 class QueryResponse(BaseModel):
@@ -130,10 +143,11 @@ async def shutdown_event():
 @app.get("/", tags=["General"])
 async def root():
     """根端點"""
+    model_name = ollama_client.config.model if ollama_client else "unknown"
     return {
         "message": "Ambulance Inventory Query API",
         "version": "2.1.0",
-        "model": "qwen3:30b",
+        "model": model_name,
         "docs": "/docs",
         "health": "/health"
     }
@@ -177,7 +191,7 @@ async def query(request: QueryRequest):
     接收自然語言問題，生成 SQL，執行查詢，返回回答
 
     Args:
-        request: 包含問題的查詢請求
+        request: 包含問題的查詢請求，可選指定模型
 
     Returns:
         QueryResponse: 包含 SQL、答案等資訊
@@ -186,10 +200,23 @@ async def query(request: QueryRequest):
         raise HTTPException(status_code=503, detail="Query engine not initialized")
 
     try:
+        # Temporarily switch model if specified
+        original_model = None
+        if request.model and ollama_client:
+            available_models = ollama_client.get_available_models()
+            if request.model in available_models:
+                original_model = ollama_client.config.model
+                ollama_client.config.model = request.model
+                logger.info(f"📝 Using model: {request.model}")
+
         logger.info(f"📝 Received query: {request.question}")
 
         # Execute query
         sql, answer = query_engine.query(request.question)
+
+        # Restore original model if it was changed
+        if original_model:
+            ollama_client.config.model = original_model
 
         logger.info(f"✅ Query successful")
 
@@ -202,6 +229,9 @@ async def query(request: QueryRequest):
         )
 
     except Exception as e:
+        # Restore original model on error
+        if original_model and ollama_client:
+            ollama_client.config.model = original_model
         logger.error(f"❌ Query failed: {e}")
         return QueryResponse(
             question=request.question,
@@ -285,6 +315,79 @@ async def get_demo_queries():
         "demo_queries": demo_queries,
         "usage": "使用 POST /query 端點執行這些查詢"
     }
+
+
+@app.get("/api/models", response_model=ModelsResponse, tags=["Models"])
+async def get_available_models():
+    """
+    取得可用的 Ollama 模型列表
+
+    Returns:
+        ModelsResponse: 可用模型列表和當前使用的模型
+    """
+    if not ollama_client:
+        raise HTTPException(status_code=503, detail="Ollama client not initialized")
+
+    try:
+        models = ollama_client.get_available_models()
+        current = ollama_client.config.model
+
+        return ModelsResponse(
+            models=models,
+            current=current
+        )
+    except Exception as e:
+        logger.error(f"Failed to get models: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get models: {str(e)}")
+
+
+@app.post("/api/models/select", tags=["Models"])
+async def select_model(request: ModelSelectRequest):
+    """
+    切換使用的 Ollama 模型
+
+    Args:
+        request: 包含模型名稱的請求
+
+    Returns:
+        切換結果
+    """
+    global ollama_client, query_engine
+
+    if not ollama_client:
+        raise HTTPException(status_code=503, detail="Ollama client not initialized")
+
+    try:
+        # Check if model is available
+        available_models = ollama_client.get_available_models()
+
+        if request.model not in available_models:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model '{request.model}' not found. Available: {available_models}"
+            )
+
+        # Update model in config
+        old_model = ollama_client.config.model
+        ollama_client.config.model = request.model
+
+        # Recreate query engine with new model
+        query_engine = QueryEngine(db_client, ollama_client)
+
+        logger.info(f"🔄 Model switched from {old_model} to {request.model}")
+
+        return {
+            "success": True,
+            "message": f"Model switched to {request.model}",
+            "previous": old_model,
+            "current": request.model
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to switch model: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to switch model: {str(e)}")
 
 
 if __name__ == "__main__":

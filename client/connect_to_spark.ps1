@@ -156,6 +156,43 @@ function Show-DemoQueries {
     Write-ColorOutput "5. What equipment categories?" "White"
 }
 
+function Run-DemoQueries {
+    $demoQueries = @(
+        "AED has stock?",
+        "What wheelchair brands?",
+        "What stretcher models?",
+        "Equipment with stock less than 10?",
+        "What equipment categories?"
+    )
+
+    Write-ColorOutput "`n[Demo Mode] Select a query to run:" "Cyan"
+    for ($i = 0; $i -lt $demoQueries.Count; $i++) {
+        Write-ColorOutput "  $($i + 1). $($demoQueries[$i])" "White"
+    }
+    Write-ColorOutput "  6. Run all demos" "Yellow"
+    Write-ColorOutput "  0. Cancel" "Gray"
+
+    $choice = Read-Host "`nYour choice (0-6)"
+
+    if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
+        Write-ColorOutput "Cancelled" "Gray"
+        return
+    }
+
+    if ($choice -eq "6") {
+        Write-ColorOutput "`n[Running all demo queries...]" "Cyan"
+        foreach ($query in $demoQueries) {
+            Send-Query -QuestionText $query
+            Write-ColorOutput "`n" "White"
+        }
+    } elseif ($choice -match "^[1-5]$") {
+        $index = [int]$choice - 1
+        Send-Query -QuestionText $demoQueries[$index]
+    } else {
+        Write-ColorOutput "[Error] Invalid choice" "Red"
+    }
+}
+
 function Open-APIDocs {
     Write-ColorOutput "`n[Browser] Opening API Documentation..." "Yellow"
     Start-Process $DocsURL
@@ -177,7 +214,7 @@ if ($Question) {
 } else {
     Write-ColorOutput "`n[Menu] Choose an option:" "Cyan"
     Write-ColorOutput "1. Interactive mode" "White"
-    Write-ColorOutput "2. Show demo queries" "White"
+    Write-ColorOutput "2. Run demo queries" "White"
     Write-ColorOutput "3. Show available models" "White"
     Write-ColorOutput "4. Open API documentation" "White"
     Write-ColorOutput "5. Exit" "White"
@@ -186,7 +223,7 @@ if ($Question) {
 
     switch ($choice) {
         "1" { Start-InteractiveMode }
-        "2" { Show-DemoQueries }
+        "2" { Run-DemoQueries }
         "3" { Show-Models }
         "4" { Open-APIDocs }
         "5" { Write-ColorOutput "Goodbye!" "Green" }

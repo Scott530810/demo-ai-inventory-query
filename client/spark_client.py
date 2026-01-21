@@ -175,6 +175,45 @@ class SparkClient:
         print(f"API Docs: {self.config.docs_url}")
         print("=" * 60)
 
+    def demo_mode(self):
+        """Demo 模式 - 執行預設的中文查詢"""
+        demo_queries = [
+            "AED除顫器有庫存嗎",
+            "輪椅有哪些品牌",
+            "擔架有哪些型號",
+            "庫存少於10件的設備",
+            "設備有哪些類別"
+        ]
+
+        print("\n📚 Demo Queries (中文示範查詢):")
+        print("=" * 60)
+        for i, query in enumerate(demo_queries, 1):
+            print(f"  {i}. {query}")
+        print(f"  6. Run all (執行全部)")
+        print(f"  0. Cancel (取消)")
+        print("=" * 60)
+
+        try:
+            choice = input("\nYour choice (0-6): ").strip()
+
+            if choice == "0" or not choice:
+                print("Cancelled")
+                return
+
+            if choice == "6":
+                print("\n🚀 Running all demo queries...")
+                for query in demo_queries:
+                    self.query(query)
+                    print("\n" + "-" * 60 + "\n")
+            elif choice in ["1", "2", "3", "4", "5"]:
+                idx = int(choice) - 1
+                self.query(demo_queries[idx])
+            else:
+                print("❌ Invalid choice")
+
+        except KeyboardInterrupt:
+            print("\nCancelled")
+
 
 def main():
     """主程式"""
@@ -222,6 +261,13 @@ def main():
         help="Show server information"
     )
 
+    parser.add_argument(
+        "--demo",
+        "-d",
+        action="store_true",
+        help="Run demo queries (中文示範查詢)"
+    )
+
     args = parser.parse_args()
 
     # Create configuration
@@ -259,26 +305,32 @@ def main():
     elif args.query:
         client.query(args.query)
 
+    elif args.demo:
+        client.demo_mode()
+
     elif args.interactive:
         client.interactive_mode()
 
     else:
         # Show menu
         print("\n📋 Choose an option:")
-        print("1. Interactive mode (recommended)")
-        print("2. Health check")
-        print("3. Show server info")
-        print("4. Exit")
+        print("1. Interactive mode (互動模式)")
+        print("2. Demo queries (中文示範查詢)")
+        print("3. Health check (健康檢查)")
+        print("4. Show server info (伺服器資訊)")
+        print("5. Exit (離開)")
 
-        choice = input("\nYour choice (1-4): ").strip()
+        choice = input("\nYour choice (1-5): ").strip()
 
         if choice == "1":
             client.interactive_mode()
         elif choice == "2":
-            client.test_connection()
+            client.demo_mode()
         elif choice == "3":
-            client.show_info()
+            client.test_connection()
         elif choice == "4":
+            client.show_info()
+        elif choice == "5":
             print("👋 Goodbye!")
         else:
             print("❌ Invalid choice")

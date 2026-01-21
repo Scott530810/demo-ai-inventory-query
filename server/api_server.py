@@ -11,9 +11,12 @@ FastAPI Server for Remote Ambulance Inventory Queries
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import sys
+import os
 from pathlib import Path
 
 # Add parent directory to path
@@ -44,6 +47,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static files for web UI
+web_dir = Path(__file__).parent.parent / "web"
+if web_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(web_dir)), name="static")
 
 # Global clients (initialized on startup)
 db_client: Optional[DatabaseClient] = None
@@ -142,14 +150,30 @@ async def shutdown_event():
 
 @app.get("/", tags=["General"])
 async def root():
-    """根端點"""
+    """根端點 - 重定向到 Web UI"""
+    return RedirectResponse(url="/web")
+
+
+@app.get("/web", tags=["General"])
+async def web_ui():
+    """Web UI 介面"""
+    web_file = Path(__file__).parent.parent / "web" / "index.html"
+    if web_file.exists():
+        return FileResponse(str(web_file), media_type="text/html")
+    return {"error": "Web UI not found", "path": str(web_file)}
+
+
+@app.get("/api", tags=["General"])
+async def api_info():
+    """API 資訊"""
     model_name = ollama_client.config.model if ollama_client else "unknown"
     return {
         "message": "Ambulance Inventory Query API",
         "version": "2.1.0",
         "model": model_name,
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "web_ui": "/web"
     }
 
 

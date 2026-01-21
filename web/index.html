@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGC AI 庫存查詢系統</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            opacity: 0.9;
+        }
+
+        .status-bar {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .status-dot.ok { background: #4ade80; }
+        .status-dot.fail { background: #f87171; }
+        .status-dot.loading { background: #fbbf24; animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .query-section {
+            padding: 25px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .query-section h2 {
+            color: #4c1d95;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        #queryInput {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        #queryInput:focus {
+            outline: none;
+            border-color: #8b5cf6;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(139, 92, 246, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .demo-section {
+            padding: 20px 25px;
+            background: #f9fafb;
+            border-bottom: 1px solid #eee;
+        }
+
+        .demo-section h3 {
+            color: #6b7280;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+
+        .demo-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .demo-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .demo-btn:hover {
+            background: #8b5cf6;
+            color: white;
+            border-color: #8b5cf6;
+        }
+
+        .result-section {
+            padding: 25px;
+            min-height: 200px;
+        }
+
+        .result-section h2 {
+            color: #4c1d95;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        #result {
+            color: #374151;
+        }
+
+        .result-placeholder {
+            color: #9ca3af;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #8b5cf6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .sql-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        .answer-box {
+            background: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            padding: 20px;
+            border-radius: 0 10px 10px 0;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+
+        .error-box {
+            background: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 20px;
+            border-radius: 0 10px 10px 0;
+            color: #dc2626;
+        }
+
+        .config-section {
+            padding: 15px 25px;
+            background: #f9fafb;
+            border-top: 1px solid #eee;
+        }
+
+        .config-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .config-input {
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .config-input:focus {
+            outline: none;
+            border-color: #8b5cf6;
+        }
+
+        label {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        footer {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            margin-top: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AGC AI 庫存查詢系統</h1>
+            <p>使用自然語言查詢設備庫存資訊</p>
+        </header>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-dot" id="dbStatus"></span>
+                <span>資料庫</span>
+            </div>
+            <div class="status-item">
+                <span class="status-dot" id="ollamaStatus"></span>
+                <span>Ollama</span>
+            </div>
+            <div class="status-item">
+                <span>模型: <strong id="modelName">-</strong></span>
+            </div>
+            <button class="btn" style="padding: 8px 15px; font-size: 14px;" onclick="checkHealth()">
+                🔄 重新檢查
+            </button>
+        </div>
+
+        <div class="card">
+            <div class="query-section">
+                <h2>💬 輸入您的問題</h2>
+                <div class="input-group">
+                    <input type="text" id="queryInput" placeholder="例如：AED除顫器有庫存嗎？"
+                           onkeypress="if(event.key==='Enter') sendQuery()">
+                    <button class="btn btn-primary" id="sendBtn" onclick="sendQuery()">
+                        🔍 查詢
+                    </button>
+                </div>
+            </div>
+
+            <div class="demo-section">
+                <h3>📚 示範查詢 (點擊直接執行)</h3>
+                <div class="demo-buttons">
+                    <button class="demo-btn" onclick="runDemo('AED除顫器有庫存嗎')">AED除顫器有庫存嗎</button>
+                    <button class="demo-btn" onclick="runDemo('輪椅有哪些品牌')">輪椅有哪些品牌</button>
+                    <button class="demo-btn" onclick="runDemo('擔架有哪些型號')">擔架有哪些型號</button>
+                    <button class="demo-btn" onclick="runDemo('庫存少於10件的設備')">庫存少於10件的設備</button>
+                    <button class="demo-btn" onclick="runDemo('設備有哪些類別')">設備有哪些類別</button>
+                </div>
+            </div>
+
+            <div class="result-section">
+                <h2>📋 查詢結果</h2>
+                <div id="result">
+                    <div class="result-placeholder">
+                        查詢結果將顯示在這裡<br>
+                        請輸入問題或點擊示範查詢
+                    </div>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <div class="config-row">
+                    <label>伺服器位址:</label>
+                    <input type="text" id="serverHost" class="config-input" value="192.168.50.2" style="width: 150px;">
+                    <label>Port:</label>
+                    <input type="number" id="serverPort" class="config-input" value="8000" style="width: 80px;">
+                    <button class="btn" style="padding: 8px 15px; font-size: 14px;" onclick="saveConfig()">
+                        💾 儲存設定
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            版本 2.1.0 | AGC AI 庫存查詢系統
+        </footer>
+    </div>
+
+    <script>
+        // Configuration
+        let config = {
+            host: localStorage.getItem('spark_host') || '192.168.50.2',
+            port: localStorage.getItem('spark_port') || '8000'
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('serverHost').value = config.host;
+            document.getElementById('serverPort').value = config.port;
+            checkHealth();
+        });
+
+        function getBaseUrl() {
+            return `http://${config.host}:${config.port}`;
+        }
+
+        function saveConfig() {
+            config.host = document.getElementById('serverHost').value;
+            config.port = document.getElementById('serverPort').value;
+            localStorage.setItem('spark_host', config.host);
+            localStorage.setItem('spark_port', config.port);
+            alert('設定已儲存！');
+            checkHealth();
+        }
+
+        async function checkHealth() {
+            const dbStatus = document.getElementById('dbStatus');
+            const ollamaStatus = document.getElementById('ollamaStatus');
+            const modelName = document.getElementById('modelName');
+
+            dbStatus.className = 'status-dot loading';
+            ollamaStatus.className = 'status-dot loading';
+            modelName.textContent = '檢查中...';
+
+            try {
+                const response = await fetch(`${getBaseUrl()}/health`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+
+                dbStatus.className = `status-dot ${data.database ? 'ok' : 'fail'}`;
+                ollamaStatus.className = `status-dot ${data.ollama ? 'ok' : 'fail'}`;
+                modelName.textContent = data.model || '未知';
+            } catch (error) {
+                dbStatus.className = 'status-dot fail';
+                ollamaStatus.className = 'status-dot fail';
+                modelName.textContent = '連線失敗';
+            }
+        }
+
+        function runDemo(query) {
+            document.getElementById('queryInput').value = query;
+            sendQuery();
+        }
+
+        async function sendQuery() {
+            const input = document.getElementById('queryInput');
+            const resultDiv = document.getElementById('result');
+            const sendBtn = document.getElementById('sendBtn');
+            const question = input.value.trim();
+
+            if (!question) {
+                alert('請輸入問題');
+                return;
+            }
+
+            // Show loading
+            sendBtn.disabled = true;
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>正在查詢中，請稍候...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`${getBaseUrl()}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ question: question })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="sql-box">
+                            <strong>📊 SQL 查詢:</strong><br><br>
+                            ${escapeHtml(data.sql)}
+                        </div>
+                        <div class="answer-box">
+                            <strong>💡 回答:</strong><br><br>
+                            ${escapeHtml(data.answer)}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error-box">
+                            <strong>❌ 查詢失敗</strong><br><br>
+                            ${escapeHtml(data.error || '未知錯誤')}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error-box">
+                        <strong>❌ 連線錯誤</strong><br><br>
+                        無法連接到伺服器 (${config.host}:${config.port})<br>
+                        請檢查伺服器是否運行中。<br><br>
+                        錯誤訊息: ${escapeHtml(error.message)}
+                    </div>
+                `;
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML.replace(/\n/g, '<br>');
+        }
+    </script>
+</body>
+</html>

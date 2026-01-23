@@ -354,6 +354,27 @@
             color: #6b7280;
         }
 
+        .server-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .server-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .server-btn.active {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+        }
+
         footer {
             text-align: center;
             color: rgba(255,255,255,0.7);
@@ -428,19 +449,23 @@
 
             <div class="config-section">
                 <div class="config-row">
-                    <label>伺服器位址:</label>
-                    <input type="text" id="serverHost" class="config-input" value="192.168.50.2" style="width: 150px;">
-                    <label>Port:</label>
-                    <input type="number" id="serverPort" class="config-input" value="8000" style="width: 80px;">
+                    <label>快速切換:</label>
+                    <button class="server-btn" onclick="switchServer('localhost', 8000)">🏠 本地</button>
+                    <button class="server-btn" onclick="switchServer('192.168.50.2', 8000)">🖥️ SPARK</button>
+                    <span style="color: #9ca3af; margin: 0 10px;">|</span>
+                    <label>自訂:</label>
+                    <input type="text" id="serverHost" class="config-input" value="192.168.50.2" style="width: 120px;">
+                    <label>:</label>
+                    <input type="number" id="serverPort" class="config-input" value="8000" style="width: 70px;">
                     <button class="btn" style="padding: 8px 15px; font-size: 14px;" onclick="saveConfig()">
-                        💾 儲存設定
+                        💾 儲存
                     </button>
                 </div>
             </div>
         </div>
 
         <footer>
-            版本 2.2.1 | AGC AI 庫存查詢系統
+            版本 2.3.0 | AGC AI 庫存查詢系統
         </footer>
     </div>
 
@@ -455,6 +480,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('serverHost').value = config.host;
             document.getElementById('serverPort').value = config.port;
+            updateServerButtons();
             checkHealth();
         });
 
@@ -467,8 +493,31 @@
             config.port = document.getElementById('serverPort').value;
             localStorage.setItem('spark_host', config.host);
             localStorage.setItem('spark_port', config.port);
+            updateServerButtons();
             alert('設定已儲存！');
             checkHealth();
+        }
+
+        function switchServer(host, port) {
+            config.host = host;
+            config.port = port.toString();
+            document.getElementById('serverHost').value = host;
+            document.getElementById('serverPort').value = port;
+            localStorage.setItem('spark_host', host);
+            localStorage.setItem('spark_port', port.toString());
+            updateServerButtons();
+            checkHealth();
+        }
+
+        function updateServerButtons() {
+            document.querySelectorAll('.server-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (config.host === 'localhost' && config.port === '8000') {
+                document.querySelector('.server-btn:nth-child(2)')?.classList.add('active');
+            } else if (config.host === '192.168.50.2' && config.port === '8000') {
+                document.querySelector('.server-btn:nth-child(3)')?.classList.add('active');
+            }
         }
 
         async function checkHealth() {
@@ -607,6 +656,7 @@
 
         async function loadModels() {
             const modelList = document.getElementById('modelList');
+            const modelNameEl = document.getElementById('modelName');
             modelList.innerHTML = '<div class="model-loading">載入中...</div>';
 
             try {
@@ -618,6 +668,9 @@
 
                 currentModel = data.current;
                 availableModels = data.models;
+
+                // Also sync status bar display
+                modelNameEl.textContent = currentModel;
 
                 renderModelList();
             } catch (error) {
@@ -657,6 +710,9 @@
             items.forEach(item => item.classList.add('loading'));
             document.getElementById('modelDropdown').classList.remove('show');
 
+            const modelNameEl = document.getElementById('modelName');
+            modelNameEl.textContent = '切換中...';
+
             try {
                 const response = await fetch(`${getBaseUrl()}/api/models/select`, {
                     method: 'POST',
@@ -670,22 +726,21 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    // Refresh health check to sync UI with server state
+                    // Update local state immediately from server response
+                    currentModel = data.current;
+                    modelNameEl.textContent = data.current;
+
+                    // Also verify with health check
                     await checkHealth();
 
-                    // Update local state from server response
-                    currentModel = data.current;
-
-                    // Show success message with actual model from server
+                    // Show success message
                     alert(`模型已切換為: ${data.current}`);
                 } else {
                     alert(`切換失敗: ${data.detail || '未知錯誤'}`);
-                    // Refresh to show correct state
                     await checkHealth();
                 }
             } catch (error) {
                 alert(`切換失敗: ${error.message}`);
-                // Refresh to show correct state
                 await checkHealth();
             } finally {
                 items.forEach(item => item.classList.remove('loading'));

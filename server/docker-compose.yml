@@ -1,13 +1,11 @@
-# Docker Compose for DGX SPARK Deployment
-# Complete stack: PostgreSQL + API Server
-
-version: '3.8'
+# Docker Compose - AGC AI 庫存查詢系統
+# PostgreSQL + FastAPI Server
 
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: ambulance-db-spark
+    container_name: ambulance-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ambulance_db
@@ -29,12 +27,29 @@ services:
   api:
     build:
       context: ..
-      dockerfile: server/Dockerfile.spark
-    container_name: ambulance-api-spark
+      dockerfile: server/Dockerfile
+    container_name: ambulance-api
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ../web:/app/web:ro
+    develop:
+      watch:
+        # Sync Python source files
+        - action: sync
+          path: ../ambulance_inventory
+          target: /app/ambulance_inventory
+        - action: sync
+          path: ./
+          target: /app/server
+          ignore:
+            - __pycache__/
+        # Sync web files
+        - action: sync
+          path: ../web
+          target: /app/web
     environment:
       # Database
       DB_HOST: postgres

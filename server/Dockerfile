@@ -1,5 +1,5 @@
-# Dockerfile for DGX SPARK Deployment
-# API Server with FastAPI
+# AGC AI 庫存查詢系統 - Dockerfile
+# FastAPI + Ollama
 
 FROM python:3.11-slim
 
@@ -13,16 +13,15 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
-COPY server/requirements.txt /app/server/requirements.txt
+COPY requirements.txt /app/requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r server/requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY ambulance_inventory/ /app/ambulance_inventory/
 COPY server/ /app/server/
-COPY run_refactored.py /app/
 
 # Create non-root user
 RUN useradd -m -u 1000 ambulance && \

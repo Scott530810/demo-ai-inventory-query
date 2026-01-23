@@ -266,6 +266,94 @@
             color: #6b7280;
         }
 
+        /* Model selector styles */
+        .model-selector {
+            position: relative;
+            display: inline-block;
+        }
+
+        .model-btn {
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .model-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .model-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 280px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            z-index: 1000;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .model-dropdown.show {
+            display: block;
+        }
+
+        .model-dropdown-header {
+            padding: 12px 15px;
+            background: #f3f4f6;
+            border-bottom: 1px solid #e5e7eb;
+            font-weight: bold;
+            color: #374151;
+        }
+
+        .model-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .model-item {
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #f3f4f6;
+            color: #374151;
+        }
+
+        .model-item:hover {
+            background: #f9fafb;
+        }
+
+        .model-item.active {
+            background: #ede9fe;
+            color: #7c3aed;
+        }
+
+        .model-item.active::after {
+            content: '✓';
+            color: #22c55e;
+            font-weight: bold;
+        }
+
+        .model-item.loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .model-loading {
+            padding: 20px;
+            text-align: center;
+            color: #6b7280;
+        }
+
         footer {
             text-align: center;
             color: rgba(255,255,255,0.7);
@@ -290,8 +378,15 @@
                 <span class="status-dot" id="ollamaStatus"></span>
                 <span>Ollama</span>
             </div>
-            <div class="status-item">
+            <div class="status-item model-selector">
                 <span>模型: <strong id="modelName">-</strong></span>
+                <button class="model-btn" onclick="toggleModelDropdown(event)">⚙️ 切換</button>
+                <div class="model-dropdown" id="modelDropdown">
+                    <div class="model-dropdown-header">選擇模型</div>
+                    <div class="model-list" id="modelList">
+                        <div class="model-loading">載入中...</div>
+                    </div>
+                </div>
             </div>
             <button class="btn" style="padding: 8px 15px; font-size: 14px;" onclick="checkHealth()">
                 🔄 重新檢查
@@ -345,7 +440,7 @@
         </div>
 
         <footer>
-            版本 2.1.0 | AGC AI 庫存查詢系統
+            版本 2.2.1 | AGC AI 庫存查詢系統
         </footer>
     </div>
 
@@ -379,11 +474,11 @@
         async function checkHealth() {
             const dbStatus = document.getElementById('dbStatus');
             const ollamaStatus = document.getElementById('ollamaStatus');
-            const modelName = document.getElementById('modelName');
+            const modelNameEl = document.getElementById('modelName');
 
             dbStatus.className = 'status-dot loading';
             ollamaStatus.className = 'status-dot loading';
-            modelName.textContent = '檢查中...';
+            modelNameEl.textContent = '檢查中...';
 
             try {
                 const response = await fetch(`${getBaseUrl()}/health`, {
@@ -394,11 +489,16 @@
 
                 dbStatus.className = `status-dot ${data.database ? 'ok' : 'fail'}`;
                 ollamaStatus.className = `status-dot ${data.ollama ? 'ok' : 'fail'}`;
-                modelName.textContent = data.model || '未知';
+
+                // Update both display and internal state
+                const serverModel = data.model || '未知';
+                modelNameEl.textContent = serverModel;
+                currentModel = serverModel;  // Sync internal state with server
             } catch (error) {
                 dbStatus.className = 'status-dot fail';
                 ollamaStatus.className = 'status-dot fail';
-                modelName.textContent = '連線失敗';
+                modelNameEl.textContent = '連線失敗';
+                currentModel = '';
             }
         }
 
@@ -477,6 +577,119 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML.replace(/\n/g, '<br>');
+        }
+
+        // Model selector functions
+        let currentModel = '';
+        let availableModels = [];
+
+        function toggleModelDropdown(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('modelDropdown');
+            const isVisible = dropdown.classList.contains('show');
+
+            if (!isVisible) {
+                dropdown.classList.add('show');
+                loadModels();
+            } else {
+                dropdown.classList.remove('show');
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (event) => {
+            const dropdown = document.getElementById('modelDropdown');
+            const selector = document.querySelector('.model-selector');
+            if (!selector.contains(event.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
+
+        async function loadModels() {
+            const modelList = document.getElementById('modelList');
+            modelList.innerHTML = '<div class="model-loading">載入中...</div>';
+
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/models`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+
+                currentModel = data.current;
+                availableModels = data.models;
+
+                renderModelList();
+            } catch (error) {
+                modelList.innerHTML = `<div class="model-loading" style="color: #ef4444;">載入失敗: ${error.message}</div>`;
+            }
+        }
+
+        function renderModelList() {
+            const modelList = document.getElementById('modelList');
+
+            if (availableModels.length === 0) {
+                modelList.innerHTML = '<div class="model-loading">沒有可用的模型</div>';
+                return;
+            }
+
+            modelList.innerHTML = availableModels.map(model => {
+                const isActive = model === currentModel;
+                const displayName = model.length > 35 ? model.substring(0, 32) + '...' : model;
+                return `
+                    <div class="model-item ${isActive ? 'active' : ''}"
+                         onclick="selectModel('${model}')"
+                         title="${model}">
+                        <span>${displayName}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function selectModel(modelName) {
+            if (modelName === currentModel) {
+                document.getElementById('modelDropdown').classList.remove('show');
+                return;
+            }
+
+            // Show loading state
+            const items = document.querySelectorAll('.model-item');
+            items.forEach(item => item.classList.add('loading'));
+            document.getElementById('modelDropdown').classList.remove('show');
+
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/models/select`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ model: modelName })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Refresh health check to sync UI with server state
+                    await checkHealth();
+
+                    // Update local state from server response
+                    currentModel = data.current;
+
+                    // Show success message with actual model from server
+                    alert(`模型已切換為: ${data.current}`);
+                } else {
+                    alert(`切換失敗: ${data.detail || '未知錯誤'}`);
+                    // Refresh to show correct state
+                    await checkHealth();
+                }
+            } catch (error) {
+                alert(`切換失敗: ${error.message}`);
+                // Refresh to show correct state
+                await checkHealth();
+            } finally {
+                items.forEach(item => item.classList.remove('loading'));
+            }
         }
     </script>
 </body>

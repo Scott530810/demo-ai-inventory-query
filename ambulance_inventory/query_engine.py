@@ -129,7 +129,7 @@ class QueryEngine:
         response = self.ollama_client.generate(
             prompt=prompt,
             system_prompt=RESPONSE_GENERATION_PROMPT,
-            temperature=0.3
+            temperature=0.1
         )
 
         if not response:

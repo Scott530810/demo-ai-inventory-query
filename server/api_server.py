@@ -96,6 +96,8 @@ class QueryResponse(BaseModel):
     answer_html: Optional[str] = Field(None, description="HTML 表格格式（完美對齊，推薦用於 Web）")
     results: Optional[List[Dict[str, Any]]] = Field(None, description="原始查詢結果")
     result_count: Optional[int] = Field(None, description="結果筆數")
+    model_used: Optional[str] = Field(None, description="實際使用的模型名稱")
+    use_llm_answer: Optional[bool] = Field(None, description="是否使用 LLM 生成回答（實際執行的模式）")
     success: bool = Field(..., description="查詢是否成功")
     error: Optional[str] = Field(None, description="錯誤訊息（如果有）")
 
@@ -242,31 +244,35 @@ async def query(request: QueryRequest):
             answer_html=None,
             results=None,
             result_count=None,
+            model_used=ollama_client.config.model if ollama_client else None,
+            use_llm_answer=request.use_llm_answer,
             success=False,
             error="Ollama service is not available. Please ensure Ollama is running on the server."
         )
 
     try:
-        # Temporarily switch model if specified
-        original_model = None
+        # Determine which model to use (from request or default)
+        # NOTE: We pass the model as a parameter, NOT modifying global state
+        # This ensures thread-safety for concurrent requests
+        default_model = ollama_client.config.model if ollama_client else "unknown"
+        actual_model_used = default_model
+
         if request.model and ollama_client:
             available_models = ollama_client.get_available_models()
             if request.model in available_models:
-                original_model = ollama_client.config.model
-                ollama_client.config.model = request.model
-                logger.info(f"📝 Using model: {request.model}")
+                actual_model_used = request.model
+                logger.info(f"📝 Using requested model: {request.model}")
+            else:
+                logger.warning(f"⚠️ Requested model '{request.model}' not available, using default: {default_model}")
 
-        logger.info(f"📝 Received query: {request.question} (use_llm_answer={request.use_llm_answer})")
+        logger.info(f"📝 Received query: {request.question} (use_llm_answer={request.use_llm_answer}, model={actual_model_used})")
 
-        # Execute query with mode
+        # Execute query with mode - pass model as parameter (thread-safe)
         sql, llm_answer, formatted_answer, html_table, raw_results = query_engine.query_with_mode(
             request.question,
-            use_llm_answer=request.use_llm_answer
+            use_llm_answer=request.use_llm_answer,
+            model=actual_model_used
         )
-
-        # Restore original model if it was changed
-        if original_model:
-            ollama_client.config.model = original_model
 
         # Handle None values (Ollama might have failed silently)
         if sql is None:
@@ -278,6 +284,8 @@ async def query(request: QueryRequest):
                 answer_html=None,
                 results=None,
                 result_count=None,
+                model_used=actual_model_used,
+                use_llm_answer=request.use_llm_answer,
                 success=False,
                 error="Query failed - Ollama may not be responding. Check if Ollama service is running."
             )
@@ -292,14 +300,13 @@ async def query(request: QueryRequest):
             answer_html=html_table,
             results=raw_results,
             result_count=len(raw_results) if raw_results else 0,
+            model_used=actual_model_used,
+            use_llm_answer=request.use_llm_answer,
             success=True,
             error=None
         )
 
     except Exception as e:
-        # Restore original model on error
-        if original_model and ollama_client:
-            ollama_client.config.model = original_model
         logger.error(f"❌ Query failed: {e}")
         return QueryResponse(
             question=request.question,
@@ -309,6 +316,8 @@ async def query(request: QueryRequest):
             answer_html=None,
             results=None,
             result_count=None,
+            model_used=request.model or (ollama_client.config.model if ollama_client else None),
+            use_llm_answer=request.use_llm_answer,
             success=False,
             error=str(e)
         )

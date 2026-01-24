@@ -81,7 +81,7 @@ def validate_sql(sql: str) -> Tuple[bool, str]:
 def clean_sql(sql: str) -> str:
     """
     清理 SQL 字串
-    移除 Markdown 標記和多餘空白
+    移除 Markdown 標記、角括號和多餘空白
 
     Args:
         sql: 原始 SQL 字串
@@ -91,6 +91,22 @@ def clean_sql(sql: str) -> str:
     """
     # 移除 Markdown 標記
     sql = sql.replace('```sql', '').replace('```', '').strip()
+
+    # 移除某些模型會加的角括號包裹 (如 <SELECT ...> 或 <sql>...</sql>)
+    sql = re.sub(r'^<\s*', '', sql)  # 移除開頭的 <
+    sql = re.sub(r'\s*>$', '', sql)  # 移除結尾的 >
+    sql = re.sub(r'^<sql>\s*', '', sql, flags=re.IGNORECASE)  # 移除 <sql>
+    sql = re.sub(r'\s*</sql>$', '', sql, flags=re.IGNORECASE)  # 移除 </sql>
+    sql = re.sub(r'^<query>\s*', '', sql, flags=re.IGNORECASE)  # 移除 <query>
+    sql = re.sub(r'\s*</query>$', '', sql, flags=re.IGNORECASE)  # 移除 </query>
+
+    # 移除可能的引號包裹
+    if sql.startswith('"') and sql.endswith('"'):
+        sql = sql[1:-1]
+    if sql.startswith("'") and sql.endswith("'"):
+        sql = sql[1:-1]
+
+    sql = sql.strip()
 
     # 移除可能的解釋文字（只保留 SQL）
     lines = sql.split('\n')

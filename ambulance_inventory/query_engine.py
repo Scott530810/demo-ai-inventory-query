@@ -29,23 +29,25 @@ class QueryEngine:
         self.ollama_client = ollama_client
         self.logger = get_logger(__name__)
 
-    def generate_sql(self, question: str) -> Optional[str]:
+    def generate_sql(self, question: str, model: Optional[str] = None) -> Optional[str]:
         """
         根據自然語言問題生成 SQL
 
         Args:
             question: 用戶問題
+            model: 使用的模型（可選）
 
         Returns:
             生成的 SQL，失敗時返回 None
         """
-        self.logger.info(f"生成 SQL: {question}")
+        self.logger.info(f"生成 SQL: {question} (model: {model or self.ollama_client.config.model})")
 
         # 調用 Ollama 生成 SQL
         raw_sql = self.ollama_client.generate(
             prompt=question,
             system_prompt=SQL_GENERATION_PROMPT,
-            temperature=0.1
+            temperature=0.1,
+            model=model
         )
 
         if not raw_sql:
@@ -86,7 +88,8 @@ class QueryEngine:
     def generate_response(
         self,
         question: str,
-        results: list
+        results: list,
+        model: Optional[str] = None
     ) -> Optional[str]:
         """
         根據查詢結果生成友善的回應
@@ -94,6 +97,7 @@ class QueryEngine:
         Args:
             question: 原始問題
             results: 查詢結果
+            model: 使用的模型（可選）
 
         Returns:
             生成的回應文本
@@ -129,7 +133,8 @@ class QueryEngine:
         response = self.ollama_client.generate(
             prompt=prompt,
             system_prompt=RESPONSE_GENERATION_PROMPT,
-            temperature=0.1
+            temperature=0.1,
+            model=model
         )
 
         if not response:
@@ -387,7 +392,8 @@ class QueryEngine:
     def query_with_mode(
         self,
         question: str,
-        use_llm_answer: bool = True
+        use_llm_answer: bool = True,
+        model: Optional[str] = None
     ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[list]]:
         """
         支援雙模式的查詢流程
@@ -395,15 +401,19 @@ class QueryEngine:
         Args:
             question: 用戶問題
             use_llm_answer: 是否使用 LLM 生成回答
+            model: 使用的模型（可選，不指定則使用預設模型）
 
         Returns:
             (SQL, LLM回答, 程式化回答, HTML表格, 原始結果) 元組
         """
+        # 使用傳入的模型，若無則使用預設模型
+        use_model = model if model else self.ollama_client.config.model
+
         # 步驟 1: 生成 SQL
         print("🤖 正在請求 Ollama 生成 SQL...")
-        print(f"   模型: {self.ollama_client.config.model}")
+        print(f"   模型: {use_model}")
 
-        sql = self.generate_sql(question)
+        sql = self.generate_sql(question, model=use_model)
 
         if not sql:
             return None, None, None, None, None
@@ -433,7 +443,7 @@ class QueryEngine:
         llm_answer = None
         if use_llm_answer and results:
             print("🤖 正在請求 Ollama 生成回應...")
-            llm_answer = self.generate_response(question, results)
+            llm_answer = self.generate_response(question, results, model=use_model)
         elif not results:
             llm_answer = "抱歉，沒有找到相關資料。"
 

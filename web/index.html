@@ -774,11 +774,29 @@
                     },
                     body: JSON.stringify({
                         question: question,
+                        model: currentModel || null,
                         use_llm_answer: useLlm
                     })
                 });
 
                 const data = await response.json();
+
+                // Sync model state with server response
+                if (data.model_used) {
+                    const modelNameEl = document.getElementById('modelName');
+                    if (currentModel !== data.model_used) {
+                        console.log(`Model sync: UI showed "${currentModel}", server used "${data.model_used}"`);
+                        currentModel = data.model_used;
+                        modelNameEl.textContent = data.model_used;
+                    }
+                }
+
+                // Sync LLM mode state with server response
+                if (data.use_llm_answer !== undefined && data.use_llm_answer !== useLlm) {
+                    console.log(`LLM mode sync: UI showed "${useLlm}", server used "${data.use_llm_answer}"`);
+                    document.getElementById('useLlmToggle').checked = data.use_llm_answer;
+                    updateModeLabel();
+                }
 
                 // Store result for tab switching
                 lastQueryResult = data;
@@ -870,12 +888,17 @@
             document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
             document.querySelector(`.output-tab:nth-child(${activeTab === 'llm' ? 1 : activeTab === 'table' ? 2 : 3})`).classList.add('active');
 
+            const modelInfo = data.model_used ? `<span style="margin-left: 15px;">🤖 模型: <strong>${escapeHtml(data.model_used)}</strong></span>` : '';
+            const modeInfo = data.use_llm_answer !== undefined
+                ? `<span style="margin-left: 15px;">${data.use_llm_answer ? '🤖 LLM模式' : '⚡ 快速模式'}</span>`
+                : '';
+
             let contentHtml = `
                 <div class="sql-box">
                     <div style="font-weight: bold; margin-bottom: 8px;">📊 SQL 查詢:</div>
                     <div>${escapeHtml(data.sql)}</div>
                 </div>
-                <div class="result-count">共 ${data.result_count || 0} 筆結果</div>
+                <div class="result-count">共 ${data.result_count || 0} 筆結果${modelInfo}${modeInfo}</div>
             `;
 
             if (activeTab === 'llm') {
@@ -886,11 +909,28 @@
                             <div>${escapeHtml(data.answer)}</div>
                         </div>
                     `;
-                } else {
+                } else if (data.use_llm_answer === false) {
+                    // 使用者選擇快速模式
                     contentHtml += `
                         <div class="answer-box" style="background: #fef3c7; border-left-color: #f59e0b;">
-                            <strong>⚠️ 快速模式</strong><br><br>
-                            未啟用 LLM 回答，請切換到「表格格式」查看結果，或開啟 LLM 模式重新查詢。
+                            <strong>⚡ 快速模式</strong><br><br>
+                            您選擇了快速模式，請切換到「表格格式」查看結果，或開啟 LLM 模式重新查詢。
+                        </div>
+                    `;
+                } else if (data.result_count === 0) {
+                    // LLM 模式但無結果
+                    contentHtml += `
+                        <div class="answer-box" style="background: #f0fdf4; border-left-color: #22c55e;">
+                            <strong>🤖 LLM 模式</strong><br><br>
+                            查無資料，無法生成 LLM 回答。
+                        </div>
+                    `;
+                } else {
+                    // 其他情況（LLM 失敗等）
+                    contentHtml += `
+                        <div class="answer-box" style="background: #fef3c7; border-left-color: #f59e0b;">
+                            <strong>⚠️ LLM 回答生成失敗</strong><br><br>
+                            請切換到「表格格式」查看結果。
                         </div>
                     `;
                 }

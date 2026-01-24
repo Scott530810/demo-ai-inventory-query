@@ -30,7 +30,8 @@ class OllamaClient:
         self,
         prompt: str,
         system_prompt: str = "",
-        temperature: float = 0.1
+        temperature: float = 0.1,
+        model: Optional[str] = None
     ) -> Optional[str]:
         """
         調用 Ollama 生成文本
@@ -39,20 +40,24 @@ class OllamaClient:
             prompt: 用戶提示詞
             system_prompt: 系統提示詞
             temperature: 溫度參數 (0.0-1.0)
+            model: 使用的模型（可選，不指定則使用預設模型）
 
         Returns:
             生成的文本，失敗時返回 None
         """
         try:
+            # 使用傳入的模型，若無則使用預設模型
+            use_model = model if model else self.config.model
+
             payload = {
-                "model": self.config.model,
+                "model": use_model,
                 "prompt": prompt,
                 "system": system_prompt,
                 "temperature": temperature,
                 "stream": False
             }
 
-            self.logger.debug(f"調用 Ollama API: {self.api_url}")
+            self.logger.debug(f"調用 Ollama API: {self.api_url} (model: {use_model})")
 
             response = requests.post(
                 self.api_url,

@@ -68,7 +68,7 @@ class QueryRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "question": "請問AED除顫器還有哪幾款有庫存？",
+                "question": "請列出所有有庫存的AED除顫器，包含品牌、型號和庫存數量",
                 "model": "llama3:70b"
             }
         }
@@ -348,11 +348,11 @@ async def get_demo_queries():
         List[str]: Demo 查詢列表
     """
     demo_queries = [
-        "請問AED除顫器還有哪幾款有庫存？",
-        "請問輪椅有哪些品牌？",
-        "請問救護車擔架有哪些型號？",
-        "請問有哪些設備的庫存數量少於10件？",
-        "請問設備表中有哪些類別？"
+        "請列出所有有庫存的AED除顫器，包含品牌、型號和庫存數量",
+        "請列出所有擔架設備的品牌、型號和庫存數量",
+        "請列出單價低於50000元的監視器，包含品牌、型號和價格",
+        "請列出庫存數量低於10件的商品，包含產品名稱、分類和庫存數量",
+        "請列出所有Philips品牌的產品，包含名稱、型號和單價",
     ]
 
     return {

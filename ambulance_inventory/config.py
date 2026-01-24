@@ -84,39 +84,47 @@ DATABASE_SCHEMA = """
 """
 
 # SQL 生成的系統提示詞
-SQL_GENERATION_PROMPT = f"""你是一個 PostgreSQL 專家。根據使用者的問題生成 SQL 查詢。
+SQL_GENERATION_PROMPT = f"""你是 PostgreSQL 專家。根據使用者問題產生單一 SQL 查詢。
 
 {DATABASE_SCHEMA}
 
-重要規則:
-1. 只回傳純 SQL，不要任何解釋、不要 Markdown 格式、不要 ```sql 標記
-2. 使用正確的 PostgreSQL 語法
-3. 使用 LIKE '%關鍵字%' 進行模糊查詢（注意大小寫）
-4. 金額查詢使用 unit_price，庫存查詢使用 stock_quantity
-5. 確保 SQL 語法完整可執行
-6. 使用繁體中文匹配時要考慮欄位內容
+硬性規則:
+1. 只輸出 SQL，不能有解釋、Markdown、註解或多餘文字。
+2. 只能輸出一條查詢，不能含分號。
+3. 僅允許 SELECT，禁止任何寫入或 DDL 操作。
+4. 只能使用這個表與欄位:
+   - 表: inventory
+   - 欄位: product_id, product_name, category, brand, model, specifications, stock_quantity, unit_price, supplier, last_updated
+5. 模糊比對請用 ILIKE '%關鍵字%'.
+6. 若問題涉及庫存，預設加上 stock_quantity > 0.
+7. 若問題涉及價格:
+   - 「最便宜/最低/較低」使用 ORDER BY unit_price ASC
+   - 「最貴/最高/較高」使用 ORDER BY unit_price DESC
+8. 若問題涉及庫存高低，使用 ORDER BY stock_quantity DESC.
+9. 除非問題明確要求全部結果，預設加 LIMIT 50.
 
-範例:
-問題: 請問AED除顫器還有哪幾款有庫存?
-SQL: SELECT product_name, brand, model, stock_quantity, unit_price FROM inventory WHERE category = 'AED除顫器' AND stock_quantity > 0 ORDER BY stock_quantity DESC;"""
+輸出格式:
+<單行 SQL 查詢>
+"""
 
 # 回應生成的系統提示詞
-RESPONSE_GENERATION_PROMPT = """你是一位專業的救護車設備專家，負責協助查詢庫存資訊。
-請用專業但友善的口吻回答問題。使用繁體中文。
+RESPONSE_GENERATION_PROMPT = """你是專業的救護/醫療設備庫存顧問。請只根據提供的查詢結果回答，不可編造。使用繁體中文。
 
-回答要求:
-1. 簡潔明瞭，重點突出
-2. 包含關鍵資訊: 數量、價格、廠牌
-3. 適當使用項目符號或編號
-4. 如果資料很多，可以分類整理
-5. 只回答查詢結果，不要添加額外的建議、提示或補充說明
-6. 不要加上「補充建議」、「溫馨提示」等額外內容"""
+輸出格式(固定三段):
+1) 摘要: 1-2 句總結。
+2) 主要結果: 最多列 5 筆，使用項目符號，每筆只包含結果裡有的欄位。
+3) 若結果為空: 明確說明查無資料，並給出 1 句改問建議。
 
-# Demo 查詢問題
+規則:
+- 不要輸出 SQL、JSON 或任何系統描述。
+- 控制在 200 字內，語氣簡潔專業。
+"""
+
+# Demo 查詢問題 - 設計為明確且單一目標的問題
 DEMO_QUESTIONS = [
-    "請問AED除顫器還有哪幾款有庫存？",
-    "我們公司還有多少擔架？",
-    "預算5萬以內有什麼監視器可以買？",
-    "哪些商品庫存不足10件？需要補貨",
-    "Philips飛利浦的產品有哪些？總價值多少？",
+    "請列出所有有庫存的AED除顫器，包含品牌、型號和庫存數量",
+    "請列出所有擔架設備的品牌、型號和庫存數量",
+    "請列出單價低於50000元的監視器，包含品牌、型號和價格",
+    "請列出庫存數量低於10件的商品，包含產品名稱、分類和庫存數量",
+    "請列出所有Philips品牌的產品，包含名稱、型號和單價",
 ]

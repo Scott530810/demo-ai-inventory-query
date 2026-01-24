@@ -125,11 +125,11 @@ class QueryEngine:
 
 請根據查詢結果，用友善專業的方式回答使用者的問題。"""
 
-        # 調用 Ollama 生成回應
+        # 調用 Ollama 生成回應 (使用較低 temperature 確保一致性)
         response = self.ollama_client.generate(
             prompt=prompt,
             system_prompt=RESPONSE_GENERATION_PROMPT,
-            temperature=0.7
+            temperature=0.3
         )
 
         if not response:

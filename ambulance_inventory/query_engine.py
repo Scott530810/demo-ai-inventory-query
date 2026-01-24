@@ -200,3 +200,241 @@ class QueryEngine:
             response += f"\n... 還有 {len(results) - 10} 筆結果未顯示"
 
         return response
+
+    @staticmethod
+    def _get_display_width(text: str) -> int:
+        """
+        計算字串的顯示寬度（考慮中文字佔 2 個字元寬度）
+
+        Args:
+            text: 要計算的字串
+
+        Returns:
+            顯示寬度
+        """
+        import unicodedata
+        width = 0
+        for char in text:
+            # East Asian Width: F(Fullwidth), W(Wide) 佔 2 個字元
+            # A(Ambiguous) 在等寬字體中通常也佔 2 個字元
+            ea_width = unicodedata.east_asian_width(char)
+            if ea_width in ('F', 'W', 'A'):
+                width += 2
+            else:
+                width += 1
+        return width
+
+    @staticmethod
+    def _pad_to_width(text: str, target_width: int) -> str:
+        """
+        將字串填充到指定的顯示寬度
+
+        Args:
+            text: 原始字串
+            target_width: 目標寬度
+
+        Returns:
+            填充後的字串
+        """
+        current_width = QueryEngine._get_display_width(text)
+        if current_width >= target_width:
+            # 需要截斷
+            result = ""
+            width = 0
+            for char in text:
+                import unicodedata
+                ea_width = unicodedata.east_asian_width(char)
+                char_width = 2 if ea_width in ('F', 'W', 'A') else 1
+                if width + char_width > target_width:
+                    break
+                result += char
+                width += char_width
+            # 補齊剩餘空格
+            result += " " * (target_width - width)
+            return result
+        else:
+            # 需要填充空格
+            return text + " " * (target_width - current_width)
+
+    @staticmethod
+    def format_results_programmatic(results: list, max_rows: int = 50) -> str:
+        """
+        程式化格式化查詢結果（不使用 LLM，快速且一致）
+        返回純文字表格格式
+
+        Args:
+            results: 查詢結果
+            max_rows: 最大顯示行數
+
+        Returns:
+            格式化的表格文本
+        """
+        if not results:
+            return "查無資料"
+
+        total = len(results)
+        display_results = results[:max_rows]
+
+        # 取得欄位名稱
+        if isinstance(display_results[0], dict):
+            columns = list(display_results[0].keys())
+        else:
+            columns = [f"欄位{i+1}" for i in range(len(display_results[0]))]
+
+        # 計算每欄寬度（使用顯示寬度）
+        col_widths = []
+        for col in columns:
+            max_width = QueryEngine._get_display_width(str(col))
+            for row in display_results:
+                if isinstance(row, dict):
+                    val = str(row.get(col, ""))
+                else:
+                    val = str(row[columns.index(col)])
+                max_width = max(max_width, QueryEngine._get_display_width(val))
+            col_widths.append(min(max_width, 30))  # 限制最大寬度
+
+        # 建立表格
+        lines = []
+
+        # 標題行
+        header_parts = []
+        for i, col in enumerate(columns):
+            header_parts.append(QueryEngine._pad_to_width(str(col), col_widths[i]))
+        header = " | ".join(header_parts)
+        lines.append(header)
+
+        # 分隔線（計算實際顯示寬度）
+        separator_width = sum(col_widths) + (len(columns) - 1) * 3  # " | " 佔 3 字元
+        lines.append("-" * separator_width)
+
+        # 資料行
+        for row in display_results:
+            if isinstance(row, dict):
+                values = [str(row.get(col, "")) for col in columns]
+            else:
+                values = [str(v) for v in row]
+
+            row_parts = []
+            for i, val in enumerate(values):
+                row_parts.append(QueryEngine._pad_to_width(val, col_widths[i]))
+            lines.append(" | ".join(row_parts))
+
+        # 統計資訊
+        lines.append("-" * separator_width)
+        lines.append(f"共 {total} 筆結果")
+        if total > max_rows:
+            lines.append(f"(僅顯示前 {max_rows} 筆)")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def format_results_html_table(results: list, max_rows: int = 50) -> str:
+        """
+        程式化格式化查詢結果為 HTML 表格（字體無關，完美對齊）
+
+        Args:
+            results: 查詢結果
+            max_rows: 最大顯示行數
+
+        Returns:
+            HTML 表格字串
+        """
+        if not results:
+            return "<p>查無資料</p>"
+
+        total = len(results)
+        display_results = results[:max_rows]
+
+        # 取得欄位名稱
+        if isinstance(display_results[0], dict):
+            columns = list(display_results[0].keys())
+        else:
+            columns = [f"欄位{i+1}" for i in range(len(display_results[0]))]
+
+        # 建立 HTML 表格
+        html = ['<table class="result-table">']
+
+        # 標題行
+        html.append('<thead><tr>')
+        for col in columns:
+            html.append(f'<th>{col}</th>')
+        html.append('</tr></thead>')
+
+        # 資料行
+        html.append('<tbody>')
+        for row in display_results:
+            html.append('<tr>')
+            if isinstance(row, dict):
+                for col in columns:
+                    val = str(row.get(col, ""))
+                    html.append(f'<td>{val}</td>')
+            else:
+                for val in row:
+                    html.append(f'<td>{val}</td>')
+            html.append('</tr>')
+        html.append('</tbody>')
+
+        html.append('</table>')
+
+        # 統計資訊
+        html.append(f'<p class="table-info">共 {total} 筆結果')
+        if total > max_rows:
+            html.append(f' (僅顯示前 {max_rows} 筆)')
+        html.append('</p>')
+
+        return '\n'.join(html)
+
+    def query_with_mode(
+        self,
+        question: str,
+        use_llm_answer: bool = True
+    ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[list]]:
+        """
+        支援雙模式的查詢流程
+
+        Args:
+            question: 用戶問題
+            use_llm_answer: 是否使用 LLM 生成回答
+
+        Returns:
+            (SQL, LLM回答, 程式化回答, HTML表格, 原始結果) 元組
+        """
+        # 步驟 1: 生成 SQL
+        print("🤖 正在請求 Ollama 生成 SQL...")
+        print(f"   模型: {self.ollama_client.config.model}")
+
+        sql = self.generate_sql(question)
+
+        if not sql:
+            return None, None, None, None, None
+
+        print(f"\n📝 生成的 SQL:")
+        print(f"{sql}\n")
+
+        # 步驟 2: 執行查詢
+        results = self.execute_query(sql)
+
+        if results is None:
+            print(f"❌ SQL 執行錯誤")
+            return sql, None, None, None, None
+
+        print(f"✅ 查詢成功，找到 {len(results)} 筆結果\n")
+
+        # 步驟 3: 格式化結果
+        formatted_results = self.db_client.format_results(results, limit=50)
+
+        # 程式化格式（總是生成，快速）
+        programmatic_answer = self.format_results_programmatic(formatted_results)
+
+        # HTML 表格格式（總是生成，完美對齊）
+        html_table = self.format_results_html_table(formatted_results)
+
+        # LLM 回答（可選）
+        llm_answer = None
+        if use_llm_answer and results:
+            print("🤖 正在請求 Ollama 生成回應...")
+            llm_answer = self.generate_response(question, results)
+        elif not results:
+            llm_answer = "抱歉，沒有找到相關資料。"
+
+        return sql, llm_answer, programmatic_answer, html_table, formatted_results

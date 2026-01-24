@@ -64,12 +64,14 @@ class QueryRequest(BaseModel):
     """查詢請求"""
     question: str = Field(..., description="自然語言問題", min_length=1)
     model: Optional[str] = Field(None, description="使用的模型（可選，不指定則使用當前模型）")
+    use_llm_answer: bool = Field(True, description="是否使用 LLM 生成回答（False 則只用程式化格式，更快）")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "question": "請列出所有有庫存的AED除顫器，包含品牌、型號和庫存數量",
-                "model": "llama3:70b"
+                "model": "llama3:70b",
+                "use_llm_answer": True
             }
         }
 
@@ -89,7 +91,11 @@ class QueryResponse(BaseModel):
     """查詢回應"""
     question: str = Field(..., description="原始問題")
     sql: str = Field(..., description="生成的 SQL 查詢")
-    answer: str = Field(..., description="AI 回答")
+    answer: str = Field(..., description="AI 回答（LLM 生成）")
+    answer_formatted: Optional[str] = Field(None, description="程式化格式回答（純文字表格）")
+    answer_html: Optional[str] = Field(None, description="HTML 表格格式（完美對齊，推薦用於 Web）")
+    results: Optional[List[Dict[str, Any]]] = Field(None, description="原始查詢結果")
+    result_count: Optional[int] = Field(None, description="結果筆數")
     success: bool = Field(..., description="查詢是否成功")
     error: Optional[str] = Field(None, description="錯誤訊息（如果有）")
 
@@ -215,10 +221,13 @@ async def query(request: QueryRequest):
     接收自然語言問題，生成 SQL，執行查詢，返回回答
 
     Args:
-        request: 包含問題的查詢請求，可選指定模型
+        request: 包含問題的查詢請求，可選指定模型和輸出模式
 
     Returns:
         QueryResponse: 包含 SQL、答案等資訊
+        - answer: LLM 生成的自然語言回答
+        - answer_formatted: 程式化表格格式（快速一致）
+        - results: 原始查詢結果（JSON）
     """
     if not query_engine:
         raise HTTPException(status_code=503, detail="Query engine not initialized")
@@ -229,6 +238,10 @@ async def query(request: QueryRequest):
             question=request.question,
             sql="",
             answer="",
+            answer_formatted=None,
+            answer_html=None,
+            results=None,
+            result_count=None,
             success=False,
             error="Ollama service is not available. Please ensure Ollama is running on the server."
         )
@@ -243,31 +256,42 @@ async def query(request: QueryRequest):
                 ollama_client.config.model = request.model
                 logger.info(f"📝 Using model: {request.model}")
 
-        logger.info(f"📝 Received query: {request.question}")
+        logger.info(f"📝 Received query: {request.question} (use_llm_answer={request.use_llm_answer})")
 
-        # Execute query
-        sql, answer = query_engine.query(request.question)
+        # Execute query with mode
+        sql, llm_answer, formatted_answer, html_table, raw_results = query_engine.query_with_mode(
+            request.question,
+            use_llm_answer=request.use_llm_answer
+        )
 
         # Restore original model if it was changed
         if original_model:
             ollama_client.config.model = original_model
 
         # Handle None values (Ollama might have failed silently)
-        if sql is None or answer is None:
+        if sql is None:
             return QueryResponse(
                 question=request.question,
-                sql=sql or "",
-                answer=answer or "",
+                sql="",
+                answer="",
+                answer_formatted=None,
+                answer_html=None,
+                results=None,
+                result_count=None,
                 success=False,
                 error="Query failed - Ollama may not be responding. Check if Ollama service is running."
             )
 
-        logger.info(f"✅ Query successful")
+        logger.info(f"✅ Query successful, {len(raw_results) if raw_results else 0} results")
 
         return QueryResponse(
             question=request.question,
             sql=sql,
-            answer=answer,
+            answer=llm_answer or "",
+            answer_formatted=formatted_answer,
+            answer_html=html_table,
+            results=raw_results,
+            result_count=len(raw_results) if raw_results else 0,
             success=True,
             error=None
         )
@@ -281,6 +305,10 @@ async def query(request: QueryRequest):
             question=request.question,
             sql="",
             answer="",
+            answer_formatted=None,
+            answer_html=None,
+            results=None,
+            result_count=None,
             success=False,
             error=str(e)
         )

@@ -340,6 +340,39 @@
             margin-bottom: 10px;
         }
 
+        .timing-breakdown {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 10px 15px;
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            color: #475569;
+        }
+
+        .timing-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .timing-item strong {
+            color: #0369a1;
+        }
+
+        .timing-total {
+            margin-left: auto;
+            padding-left: 12px;
+            border-left: 1px solid #94a3b8;
+        }
+
+        .timing-total strong {
+            color: #059669;
+            font-size: 14px;
+        }
+
         /* Output mode toggle */
         .mode-toggle {
             display: flex;
@@ -518,6 +551,17 @@
             padding: 20px;
             text-align: center;
             color: #6b7280;
+        }
+
+        .model-label {
+            font-size: 11px;
+            color: #6b7280;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+
+        .model-item.active .model-label {
+            color: #7c3aed;
         }
 
         .server-btn {
@@ -893,12 +937,42 @@
                 ? `<span style="margin-left: 15px;">${data.use_llm_answer ? '🤖 LLM模式' : '⚡ 快速模式'}</span>`
                 : '';
 
+            // 詳細計時資訊
+            let timeInfo = '';
+            if (data.timing) {
+                const t = data.timing;
+                const details = [];
+                if (t.sql_generation) details.push(`SQL生成: ${t.sql_generation}秒`);
+                if (t.query_execution) details.push(`查詢執行: ${t.query_execution}秒`);
+                if (t.formatting) details.push(`格式化: ${t.formatting}秒`);
+                if (t.llm_response) details.push(`LLM回答: ${t.llm_response}秒`);
+                const tooltip = details.join(' | ');
+                timeInfo = `<span style="margin-left: 15px; cursor: help;" title="${tooltip}">⏱️ ${t.total || data.elapsed_time}秒</span>`;
+            } else if (data.elapsed_time !== undefined) {
+                timeInfo = `<span style="margin-left: 15px;">⏱️ ${data.elapsed_time}秒</span>`;
+            }
+
+            // 計時詳細顯示
+            let timingDetail = '';
+            if (data.timing) {
+                const t = data.timing;
+                const items = [];
+                if (t.sql_generation) items.push(`<span class="timing-item">🤖 SQL生成 <strong>${t.sql_generation}s</strong></span>`);
+                if (t.query_execution) items.push(`<span class="timing-item">🔍 查詢 <strong>${t.query_execution}s</strong></span>`);
+                if (t.formatting) items.push(`<span class="timing-item">📋 格式化 <strong>${t.formatting}s</strong></span>`);
+                if (t.llm_response) items.push(`<span class="timing-item">💬 LLM回答 <strong>${t.llm_response}s</strong></span>`);
+                if (items.length > 0) {
+                    timingDetail = `<div class="timing-breakdown">${items.join('')}<span class="timing-item timing-total">⏱️ 總計 <strong>${t.total || data.elapsed_time}s</strong></span></div>`;
+                }
+            }
+
             let contentHtml = `
                 <div class="sql-box">
                     <div style="font-weight: bold; margin-bottom: 8px;">📊 SQL 查詢:</div>
                     <div>${escapeHtml(data.sql)}</div>
                 </div>
                 <div class="result-count">共 ${data.result_count || 0} 筆結果${modelInfo}${modeInfo}</div>
+                ${timingDetail}
             `;
 
             if (activeTab === 'llm') {
@@ -990,6 +1064,14 @@
             }
         });
 
+        // 推薦模型列表（只顯示這些模型）
+        const RECOMMENDED_MODELS = ['80b', '30b', '8b'];
+
+        function isRecommendedModel(modelName) {
+            const lowerName = modelName.toLowerCase();
+            return RECOMMENDED_MODELS.some(size => lowerName.includes(size));
+        }
+
         async function loadModels() {
             const modelList = document.getElementById('modelList');
             const modelNameEl = document.getElementById('modelName');
@@ -1003,7 +1085,13 @@
                 const data = await response.json();
 
                 currentModel = data.current;
-                availableModels = data.models;
+                // 只保留推薦的模型（80b, 30b, 8b）
+                availableModels = data.models.filter(isRecommendedModel);
+
+                // 確保當前模型在列表中（即使不在推薦列表）
+                if (currentModel && !availableModels.includes(currentModel)) {
+                    availableModels.unshift(currentModel);
+                }
 
                 // Also sync status bar display
                 modelNameEl.textContent = currentModel;
@@ -1012,6 +1100,14 @@
             } catch (error) {
                 modelList.innerHTML = `<div class="model-loading" style="color: #ef4444;">載入失敗: ${error.message}</div>`;
             }
+        }
+
+        function getModelLabel(modelName) {
+            const lowerName = modelName.toLowerCase();
+            if (lowerName.includes('80b')) return '⭐ 最準確';
+            if (lowerName.includes('30b')) return '⚡ 平衡';
+            if (lowerName.includes('8b')) return '🚀 極速';
+            return '';
         }
 
         function renderModelList() {
@@ -1024,12 +1120,14 @@
 
             modelList.innerHTML = availableModels.map(model => {
                 const isActive = model === currentModel;
-                const displayName = model.length > 35 ? model.substring(0, 32) + '...' : model;
+                const displayName = model.length > 30 ? model.substring(0, 27) + '...' : model;
+                const label = getModelLabel(model);
                 return `
                     <div class="model-item ${isActive ? 'active' : ''}"
                          onclick="selectModel('${model}')"
                          title="${model}">
                         <span>${displayName}</span>
+                        ${label ? `<span class="model-label">${label}</span>` : ''}
                     </div>
                 `;
             }).join('');

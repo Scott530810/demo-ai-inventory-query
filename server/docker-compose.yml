@@ -60,8 +60,8 @@ services:
 
       # Ollama (running on host)
       OLLAMA_HOST: http://host.docker.internal:11434
-      OLLAMA_MODEL: llama3:70b
-      OLLAMA_TIMEOUT: 120
+      OLLAMA_MODEL: qwen3-next:80b-a3b-instruct-q4_K_M
+      OLLAMA_TIMEOUT: 180  # 增加到 180 秒以應對大模型載入
 
       # API
       API_HOST: 0.0.0.0

@@ -4,7 +4,8 @@
 """
 
 import json
-from typing import Optional, Tuple
+import time
+from typing import Optional, Tuple, Dict
 import logging
 
 from .config import SQL_GENERATION_PROMPT, RESPONSE_GENERATION_PROMPT
@@ -394,7 +395,7 @@ class QueryEngine:
         question: str,
         use_llm_answer: bool = True,
         model: Optional[str] = None
-    ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[list]]:
+    ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[list], Dict[str, float]]:
         """
         支援雙模式的查詢流程
 
@@ -404,8 +405,11 @@ class QueryEngine:
             model: 使用的模型（可選，不指定則使用預設模型）
 
         Returns:
-            (SQL, LLM回答, 程式化回答, HTML表格, 原始結果) 元組
+            (SQL, LLM回答, 程式化回答, HTML表格, 原始結果, 計時資訊) 元組
         """
+        # 計時資訊
+        timing: Dict[str, float] = {}
+
         # 使用傳入的模型，若無則使用預設模型
         use_model = model if model else self.ollama_client.config.model
 
@@ -413,24 +417,29 @@ class QueryEngine:
         print("🤖 正在請求 Ollama 生成 SQL...")
         print(f"   模型: {use_model}")
 
+        t0 = time.time()
         sql = self.generate_sql(question, model=use_model)
+        timing['sql_generation'] = round(time.time() - t0, 2)
 
         if not sql:
-            return None, None, None, None, None
+            return None, None, None, None, None, timing
 
         print(f"\n📝 生成的 SQL:")
         print(f"{sql}\n")
 
         # 步驟 2: 執行查詢
+        t0 = time.time()
         results = self.execute_query(sql)
+        timing['query_execution'] = round(time.time() - t0, 2)
 
         if results is None:
             print(f"❌ SQL 執行錯誤")
-            return sql, None, None, None, None
+            return sql, None, None, None, None, timing
 
         print(f"✅ 查詢成功，找到 {len(results)} 筆結果\n")
 
         # 步驟 3: 格式化結果
+        t0 = time.time()
         formatted_results = self.db_client.format_results(results, limit=50)
 
         # 程式化格式（總是生成，快速）
@@ -438,13 +447,16 @@ class QueryEngine:
 
         # HTML 表格格式（總是生成，完美對齊）
         html_table = self.format_results_html_table(formatted_results)
+        timing['formatting'] = round(time.time() - t0, 2)
 
         # LLM 回答（可選）
         llm_answer = None
         if use_llm_answer and results:
             print("🤖 正在請求 Ollama 生成回應...")
+            t0 = time.time()
             llm_answer = self.generate_response(question, results, model=use_model)
+            timing['llm_response'] = round(time.time() - t0, 2)
         elif not results:
             llm_answer = "抱歉，沒有找到相關資料。"
 
-        return sql, llm_answer, programmatic_answer, html_table, formatted_results
+        return sql, llm_answer, programmatic_answer, html_table, formatted_results, timing

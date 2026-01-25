@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import sys
 import os
+import time
 from pathlib import Path
 
 # Add parent directory to path
@@ -87,6 +88,15 @@ class ModelSelectRequest(BaseModel):
     model: str = Field(..., description="要使用的模型名稱")
 
 
+class TimingInfo(BaseModel):
+    """計時資訊"""
+    sql_generation: Optional[float] = Field(None, description="SQL 生成耗時（秒）")
+    query_execution: Optional[float] = Field(None, description="查詢執行耗時（秒）")
+    formatting: Optional[float] = Field(None, description="格式化耗時（秒）")
+    llm_response: Optional[float] = Field(None, description="LLM 回答生成耗時（秒）")
+    total: Optional[float] = Field(None, description="總耗時（秒）")
+
+
 class QueryResponse(BaseModel):
     """查詢回應"""
     question: str = Field(..., description="原始問題")
@@ -98,6 +108,8 @@ class QueryResponse(BaseModel):
     result_count: Optional[int] = Field(None, description="結果筆數")
     model_used: Optional[str] = Field(None, description="實際使用的模型名稱")
     use_llm_answer: Optional[bool] = Field(None, description="是否使用 LLM 生成回答（實際執行的模式）")
+    elapsed_time: Optional[float] = Field(None, description="總耗時（秒）")
+    timing: Optional[TimingInfo] = Field(None, description="詳細計時資訊")
     success: bool = Field(..., description="查詢是否成功")
     error: Optional[str] = Field(None, description="錯誤訊息（如果有）")
 
@@ -231,6 +243,8 @@ async def query(request: QueryRequest):
         - answer_formatted: 程式化表格格式（快速一致）
         - results: 原始查詢結果（JSON）
     """
+    start_time = time.time()
+
     if not query_engine:
         raise HTTPException(status_code=503, detail="Query engine not initialized")
 
@@ -246,6 +260,7 @@ async def query(request: QueryRequest):
             result_count=None,
             model_used=ollama_client.config.model if ollama_client else None,
             use_llm_answer=request.use_llm_answer,
+            elapsed_time=round(time.time() - start_time, 2),
             success=False,
             error="Ollama service is not available. Please ensure Ollama is running on the server."
         )
@@ -268,7 +283,7 @@ async def query(request: QueryRequest):
         logger.info(f"📝 Received query: {request.question} (use_llm_answer={request.use_llm_answer}, model={actual_model_used})")
 
         # Execute query with mode - pass model as parameter (thread-safe)
-        sql, llm_answer, formatted_answer, html_table, raw_results = query_engine.query_with_mode(
+        sql, llm_answer, formatted_answer, html_table, raw_results, step_timing = query_engine.query_with_mode(
             request.question,
             use_llm_answer=request.use_llm_answer,
             model=actual_model_used
@@ -276,6 +291,7 @@ async def query(request: QueryRequest):
 
         # Handle None values (Ollama might have failed silently)
         if sql is None:
+            elapsed = round(time.time() - start_time, 2)
             return QueryResponse(
                 question=request.question,
                 sql="",
@@ -286,11 +302,17 @@ async def query(request: QueryRequest):
                 result_count=None,
                 model_used=actual_model_used,
                 use_llm_answer=request.use_llm_answer,
+                elapsed_time=elapsed,
+                timing=TimingInfo(
+                    sql_generation=step_timing.get('sql_generation'),
+                    total=elapsed
+                ),
                 success=False,
                 error="Query failed - Ollama may not be responding. Check if Ollama service is running."
             )
 
-        logger.info(f"✅ Query successful, {len(raw_results) if raw_results else 0} results")
+        elapsed = round(time.time() - start_time, 2)
+        logger.info(f"✅ Query successful, {len(raw_results) if raw_results else 0} results, {elapsed}s")
 
         return QueryResponse(
             question=request.question,
@@ -302,6 +324,14 @@ async def query(request: QueryRequest):
             result_count=len(raw_results) if raw_results else 0,
             model_used=actual_model_used,
             use_llm_answer=request.use_llm_answer,
+            elapsed_time=elapsed,
+            timing=TimingInfo(
+                sql_generation=step_timing.get('sql_generation'),
+                query_execution=step_timing.get('query_execution'),
+                formatting=step_timing.get('formatting'),
+                llm_response=step_timing.get('llm_response'),
+                total=elapsed
+            ),
             success=True,
             error=None
         )
@@ -318,6 +348,7 @@ async def query(request: QueryRequest):
             result_count=None,
             model_used=request.model or (ollama_client.config.model if ollama_client else None),
             use_llm_answer=request.use_llm_answer,
+            elapsed_time=round(time.time() - start_time, 2),
             success=False,
             error=str(e)
         )

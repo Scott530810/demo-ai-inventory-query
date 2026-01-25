@@ -91,7 +91,7 @@ class TestQueryEngineModelParameter:
         )
 
         engine = QueryEngine(self.mock_db_client, self.mock_ollama_client)
-        sql, llm_answer, _, _, _ = engine.query_with_mode(
+        sql, llm_answer, _, _, _, timing = engine.query_with_mode(
             "列出庫存",
             use_llm_answer=True,
             model="llama3:70b"
@@ -103,12 +103,17 @@ class TestQueryEngineModelParameter:
         assert calls[0][1].get('model') == "llama3:70b"
         assert calls[1][1].get('model') == "llama3:70b"
 
+        # Verify timing dictionary is returned
+        assert isinstance(timing, dict)
+        assert 'sql_generation' in timing
+        assert 'query_execution' in timing
+
     def test_query_with_mode_fast_mode(self):
         """測試快速模式不調用 LLM 生成回應"""
         self.mock_ollama_client.generate = Mock(return_value="SELECT * FROM inventory")
 
         engine = QueryEngine(self.mock_db_client, self.mock_ollama_client)
-        sql, llm_answer, formatted, html, results = engine.query_with_mode(
+        sql, llm_answer, formatted, html, results, timing = engine.query_with_mode(
             "列出庫存",
             use_llm_answer=False,
             model="qwen3:8b"
@@ -119,6 +124,13 @@ class TestQueryEngineModelParameter:
         assert llm_answer is None
         assert formatted is not None
         assert html is not None
+
+        # Verify timing dictionary (no llm_response in fast mode)
+        assert isinstance(timing, dict)
+        assert 'sql_generation' in timing
+        assert 'query_execution' in timing
+        assert 'formatting' in timing
+        assert 'llm_response' not in timing
 
 
 class TestQueryEngineFormatting:

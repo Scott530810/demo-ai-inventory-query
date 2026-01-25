@@ -1,5 +1,55 @@
 # 更新日誌
 
+## [2.4.0] - 2026-01-25
+
+### 效能優化與使用體驗改進
+
+---
+
+### 新增功能
+
+#### 查詢時間追蹤
+- 顯示各階段耗時分解（SQL 生成、查詢執行、格式化、LLM 回答）
+- Web UI 新增時間明細顯示區塊
+- API 回應新增 `elapsed_time` 欄位，包含詳細時間資訊
+
+#### 模型選擇器優化
+- 僅顯示推薦模型（80b⭐最準確、30b⚡平衡、8b🚀極速）
+- 模型標籤直觀顯示效能特性
+- 過濾非推薦模型，減少使用者選擇困難
+
+### 改進
+
+#### 效能調整
+- 預設模型改為 `qwen3-next:80b-a3b-instruct-q4_K_M`（載入後推理最快）
+- Ollama 超時時間增至 180 秒（應對大模型載入）
+- 建議設定 `OLLAMA_MAX_LOADED_MODELS=3` 保持多模型常駐
+
+#### 單元測試
+- 更新 `query_with_mode` 測試以支援新的時間回傳值
+- 新增時間字典驗證測試
+
+### Ollama 建議設定
+
+```bash
+# /etc/systemd/system/ollama.service.d/override.conf
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0"
+Environment="OLLAMA_MAX_LOADED_MODELS=3"
+Environment="OLLAMA_NUM_PARALLEL=4"
+Environment="OLLAMA_KEEP_ALIVE=10m"
+```
+
+### 效能測試結果（模型已載入）
+
+| 模型 | 推理時間 |
+|------|---------|
+| 80b  | ~3.6s   |
+| 30b  | ~31s    |
+| 8b   | ~21s    |
+
+---
+
 ## [2.3.0] - 2026-01-24
 
 ### 重大更新：Web 版本整合
@@ -125,4 +175,4 @@ demo-ai-inventory-query/
 
 ---
 
-**版本**: 2.3.0 | **作者**: Scott
+**版本**: 2.4.0 | **作者**: Scott

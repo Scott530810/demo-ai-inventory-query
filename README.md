@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.3.0-brightgreen)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.4.0-brightgreen)](CHANGELOG.md)
 
 基於自然語言的救護車設備庫存查詢系統，使用本地 Ollama 模型實現 SQL 生成和智能回答。
 
@@ -10,7 +10,8 @@
 
 - **自然語言查詢** - 使用中文提問，自動生成 SQL
 - **Web UI** - 現代化網頁介面，支援模型與伺服器快速切換
-- **動態模型選擇** - 支援切換任意 Ollama 模型
+- **查詢時間追蹤** - 顯示各階段耗時（SQL 生成、查詢、格式化、LLM 回答）
+- **智慧模型選擇** - 推薦模型標籤（⭐最準確 / ⚡平衡 / 🚀極速）
 - **Docker 部署** - 一鍵啟動 PostgreSQL + API Server
 - **跨伺服器支援** - 可切換本地或遠端 SPARK 伺服器
 
@@ -68,23 +69,32 @@ docker compose up -d
 
 ---
 
-## 模型切換
+## 模型選擇
 
-Web UI 支援動態切換 Ollama 模型：
+Web UI 顯示推薦模型，並標註效能特性：
 
+| 模型 | 標籤 | 推理時間* | 說明 |
+|------|------|----------|------|
+| qwen3-next:80b | ⭐ 最準確 | ~3.6s | 預設模型，準確度最高 |
+| qwen3:30b | ⚡ 平衡 | ~31s | 中等速度與準確度 |
+| qwen3:8b | 🚀 極速 | ~21s | 快速回應，適合簡單查詢 |
+
+*模型已載入記憶體時的推理時間
+
+**切換方式:**
 1. 點擊狀態列的「切換」按鈕
 2. 從下拉選單選擇模型
-3. 系統會自動切換並同步顯示
+3. 系統會自動切換
 
 **API 端點:**
 ```bash
 # 取得可用模型
 curl http://localhost:8000/api/models
 
-# 切換模型
-curl -X POST http://localhost:8000/api/models/select \
+# 查詢（指定模型）
+curl http://localhost:8000/query \
      -H "Content-Type: application/json" \
-     -d '{"model": "llama3:8b"}'
+     -d '{"question": "列出所有品牌", "model": "qwen3:8b"}'
 ```
 
 ---
@@ -116,12 +126,25 @@ demo-ai-inventory-query/
 
 **硬體:**
 - CPU: 4 核心以上
-- RAM: 16GB 以上
-- GPU: NVIDIA GPU (建議 8GB+ VRAM，用於運行 Ollama)
+- RAM: 64GB 以上（同時載入多模型需 128GB）
+- GPU: NVIDIA GPU 或 Apple Silicon（建議 48GB+ 統一記憶體）
 
 **軟體:**
 - Docker Desktop
 - Ollama (需在主機上運行)
+
+**Ollama 建議設定:**
+```bash
+# 編輯 systemd 設定
+sudo systemctl edit ollama
+
+# 加入以下內容
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0"
+Environment="OLLAMA_MAX_LOADED_MODELS=3"
+Environment="OLLAMA_NUM_PARALLEL=4"
+Environment="OLLAMA_KEEP_ALIVE=10m"
+```
 
 ---
 
@@ -131,4 +154,4 @@ MIT License
 
 ---
 
-**版本**: 2.3.0 | **作者**: Scott
+**版本**: 2.4.0 | **作者**: Scott

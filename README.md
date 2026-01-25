@@ -41,9 +41,13 @@ docker compose up -d
 
 ### 本地部署 (Windows 11)
 
+適用硬體：RTX 5070 8GB+ VRAM / RYZEN AI 7+ / 32GB+ RAM
+
 ```powershell
 # 1. 確保 Ollama 運行並下載模型
-ollama pull llama3:70b
+ollama pull qwen3:30b
+ollama pull qwen3:8b
+ollama pull qwen3:4b
 
 # 2. 啟動 Docker 服務
 cd server
@@ -53,19 +57,28 @@ docker compose up -d
 start http://localhost:8000
 ```
 
-### 遠端部署 (SPARK 伺服器)
+### SPARK 伺服器部署 (128GB 統一記憶體)
+
+適用於大記憶體伺服器，可運行 80b 模型
 
 ```bash
-# 在 SPARK 伺服器上
-cd /opt
-git clone https://github.com/Scott530810/demo-ai-inventory-query.git
-cd demo-ai-inventory-query/server
+# 1. 設定 Ollama（參考系統需求章節的 Ollama 建議設定）
+sudo systemctl edit ollama
+
+# 2. 下載推薦模型
+ollama pull qwen3-next:80b-a3b-instruct-q4_K_M
+ollama pull qwen3:30b
+ollama pull qwen3:8b
+
+# 3. 部署應用
+cd ~/demo-ai-inventory-query/server
 docker compose up -d
 ```
 
-在 Windows 筆電上：
+### 從 Windows 連接 SPARK 伺服器
+
 1. 開啟瀏覽器 http://192.168.50.2:8000
-2. 或使用 Web UI 的快速切換按鈕
+2. 或使用 Web UI 的伺服器切換按鈕
 
 ---
 

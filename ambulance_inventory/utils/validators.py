@@ -92,13 +92,15 @@ def clean_sql(sql: str) -> str:
     # 移除 Markdown 標記
     sql = sql.replace('```sql', '').replace('```', '').strip()
 
-    # 移除某些模型會加的角括號包裹 (如 <SELECT ...> 或 <sql>...</sql>)
-    sql = re.sub(r'^<\s*', '', sql)  # 移除開頭的 <
-    sql = re.sub(r'\s*>$', '', sql)  # 移除結尾的 >
+    # 移除某些模型會加的 XML 標籤包裹 (順序重要：先處理完整標籤，再處理簡單角括號)
     sql = re.sub(r'^<sql>\s*', '', sql, flags=re.IGNORECASE)  # 移除 <sql>
     sql = re.sub(r'\s*</sql>$', '', sql, flags=re.IGNORECASE)  # 移除 </sql>
     sql = re.sub(r'^<query>\s*', '', sql, flags=re.IGNORECASE)  # 移除 <query>
     sql = re.sub(r'\s*</query>$', '', sql, flags=re.IGNORECASE)  # 移除 </query>
+
+    # 移除簡單的角括號包裹 (如 <SELECT ...>)
+    sql = re.sub(r'^<\s*', '', sql)  # 移除開頭的 <
+    sql = re.sub(r'\s*>$', '', sql)  # 移除結尾的 >
 
     # 移除可能的引號包裹
     if sql.startswith('"') and sql.endswith('"'):

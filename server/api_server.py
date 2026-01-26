@@ -23,6 +23,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from ambulance_inventory import __version__ as app_version
 from ambulance_inventory.config import DatabaseConfig, OllamaConfig
 from ambulance_inventory.database import DatabaseClient
 from ambulance_inventory.ollama_client import OllamaClient
@@ -35,16 +36,27 @@ logger = get_logger(__name__)
 app = FastAPI(
     title="Ambulance Inventory Query API",
     description="自然語言查詢救護車設備庫存系統 - 遠端 API 版本",
-    version="2.1.0",
+    version=app_version,
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
 # CORS configuration for remote access from Windows 11
+cors_origins_raw = os.getenv("CORS_ALLOW_ORIGINS", "*")
+cors_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
+if not cors_origins:
+    cors_origins = ["*"]
+
+cors_credentials_env = os.getenv("CORS_ALLOW_CREDENTIALS")
+if cors_credentials_env is None:
+    cors_allow_credentials = cors_origins != ["*"]
+else:
+    cors_allow_credentials = cors_credentials_env.strip().lower() in {"1", "true", "yes"}
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your Windows 11 IP
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -189,7 +201,7 @@ async def api_info():
     model_name = ollama_client.config.model if ollama_client else "unknown"
     return {
         "message": "Ambulance Inventory Query API",
-        "version": "2.1.0",
+        "version": app_version,
         "model": model_name,
         "docs": "/docs",
         "health": "/health",
@@ -220,7 +232,7 @@ async def health_check():
             database=db_ok,
             ollama=ollama_ok,
             model=model_name,
-            version="2.1.0"
+            version=app_version
         )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -311,6 +323,28 @@ async def query(request: QueryRequest):
                 error="Query failed - Ollama may not be responding. Check if Ollama service is running."
             )
 
+        if raw_results is None:
+            elapsed = round(time.time() - start_time, 2)
+            return QueryResponse(
+                question=request.question,
+                sql=sql,
+                answer="",
+                answer_formatted=None,
+                answer_html=None,
+                results=None,
+                result_count=None,
+                model_used=actual_model_used,
+                use_llm_answer=request.use_llm_answer,
+                elapsed_time=elapsed,
+                timing=TimingInfo(
+                    sql_generation=step_timing.get('sql_generation'),
+                    query_execution=step_timing.get('query_execution'),
+                    total=elapsed
+                ),
+                success=False,
+                error="Query failed during execution. Check database connectivity or SQL validity."
+            )
+
         elapsed = round(time.time() - start_time, 2)
         logger.info(f"✅ Query successful, {len(raw_results) if raw_results else 0} results, {elapsed}s")
 
@@ -387,10 +421,10 @@ async def get_tables():
         tables_dict = defaultdict(list)
 
         for row in rows:
-            tables_dict[row[0]].append({
-                "column_name": row[1],
-                "data_type": row[2],
-                "nullable": row[3]
+            tables_dict[row["table_name"]].append({
+                "column_name": row["column_name"],
+                "data_type": row["data_type"],
+                "nullable": row["is_nullable"]
             })
 
         # Convert to TableInfo list

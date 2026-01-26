@@ -95,6 +95,12 @@ class DatabaseClient:
             self.logger.error(f"資料庫連接測試失敗: {str(e)}")
             return False
 
+    def close(self) -> None:
+        """
+        清理資源（目前為無狀態連線，保留介面相容）
+        """
+        return None
+
     def get_inventory_count(self) -> int:
         """
         獲取庫存商品總數

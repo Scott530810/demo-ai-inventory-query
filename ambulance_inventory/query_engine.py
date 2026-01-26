@@ -64,8 +64,7 @@ class QueryEngine:
             self.logger.warning(f"SQL 驗證失敗: {error_msg}")
             print(f"⚠️ SQL 驗證警告: {error_msg}")
             print(f"   生成的 SQL: {cleaned_sql[:100]}...")
-            # 即使驗證失敗，仍然返回 SQL（讓用戶決定是否使用）
-            # 但不執行危險操作
+            # 仍回傳 SQL 供使用者檢視，但後續查詢會拒絕執行
 
         return cleaned_sql
 
@@ -79,6 +78,11 @@ class QueryEngine:
         Returns:
             查詢結果列表，失敗時返回 None
         """
+        is_valid, error_msg = validate_sql(sql)
+        if not is_valid:
+            self.logger.error(f"拒絕執行無效 SQL: {error_msg}")
+            return None
+
         try:
             results = self.db_client.execute_query(sql)
             return results

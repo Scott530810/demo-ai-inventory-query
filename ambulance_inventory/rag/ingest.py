@@ -205,7 +205,7 @@ class RagIngestor:
         """清除指定來源的舊資料"""
         try:
             sql = "DELETE FROM rag_chunks WHERE source = %s"
-            self.db_client.execute_query(sql, (source,))
+            self.db_client.execute_command(sql, (source,))
             logger.info(f"已清除舊資料: {source}")
         except Exception as e:
             logger.warning(f"清除舊資料失敗（可能是首次匯入）: {e}")
@@ -230,7 +230,7 @@ class RagIngestor:
             """
 
             import json
-            self.db_client.execute_query(
+            self.db_client.execute_command(
                 sql,
                 (source, page, chunk_index, content, json.dumps(metadata), embedding_str)
             )

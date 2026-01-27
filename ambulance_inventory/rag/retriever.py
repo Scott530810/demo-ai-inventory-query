@@ -142,18 +142,18 @@ class RagRetriever:
 
             return [
                 RetrievalResult(
-                    source=row[0],
-                    page=row[1],
-                    chunk_index=row[2],
-                    content=row[3],
-                    score=float(row[5]),
-                    metadata=row[4] or {}
+                    source=row['source'],
+                    page=row['page'],
+                    chunk_index=row['chunk_index'],
+                    content=row['content'],
+                    score=float(row['final_score']),
+                    metadata=row['metadata'] or {}
                 )
                 for row in rows
             ]
 
         except Exception as e:
-            self.logger.error(f"Hybrid search failed: {e}")
+            self.logger.error(f"Hybrid search failed: {e}", exc_info=True)
             return self._bm25_search(query, top_k)
 
     def _vector_search(self, query_embedding: List[float], top_k: int) -> List[RetrievalResult]:
@@ -174,12 +174,12 @@ class RagRetriever:
 
             return [
                 RetrievalResult(
-                    source=row[0],
-                    page=row[1],
-                    chunk_index=row[2],
-                    content=row[3],
-                    score=float(row[5]),
-                    metadata=row[4] or {}
+                    source=row['source'],
+                    page=row['page'],
+                    chunk_index=row['chunk_index'],
+                    content=row['content'],
+                    score=float(row['score']),
+                    metadata=row['metadata'] or {}
                 )
                 for row in rows
             ]
@@ -204,12 +204,12 @@ class RagRetriever:
 
             return [
                 RetrievalResult(
-                    source=row[0],
-                    page=row[1],
-                    chunk_index=row[2],
-                    content=row[3],
-                    score=float(row[5]),
-                    metadata=row[4] or {}
+                    source=row['source'],
+                    page=row['page'],
+                    chunk_index=row['chunk_index'],
+                    content=row['content'],
+                    score=float(row['score']),
+                    metadata=row['metadata'] or {}
                 )
                 for row in rows
             ]

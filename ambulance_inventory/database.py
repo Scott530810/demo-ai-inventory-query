@@ -32,7 +32,7 @@ class DatabaseClient:
         params: Optional[tuple] = None
     ) -> List[Dict[str, Any]]:
         """
-        執行 SQL 查詢
+        執行 SQL 查詢 (SELECT)
 
         Args:
             sql: SQL 查詢語句
@@ -66,6 +66,59 @@ class DatabaseClient:
             return [dict(row) for row in results]
 
         except psycopg2.Error as e:
+            self.logger.error(f"資料庫錯誤: {str(e)}")
+            raise
+
+        finally:
+            # 清理資源
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    def execute_command(
+        self,
+        sql: str,
+        params: Optional[tuple] = None
+    ) -> int:
+        """
+        執行 SQL 命令 (INSERT/UPDATE/DELETE)
+
+        Args:
+            sql: SQL 命令語句
+            params: 命令參數（可選）
+
+        Returns:
+            受影響的行數
+
+        Raises:
+            psycopg2.Error: 資料庫錯誤
+        """
+        conn = None
+        cursor = None
+
+        try:
+            # 建立連接
+            conn = psycopg2.connect(**self.config.to_dict())
+            cursor = conn.cursor()
+
+            # 執行命令
+            if params:
+                cursor.execute(sql, params)
+            else:
+                cursor.execute(sql)
+
+            # 提交事務
+            conn.commit()
+
+            affected_rows = cursor.rowcount
+            self.logger.info(f"命令成功，影響 {affected_rows} 行")
+
+            return affected_rows
+
+        except psycopg2.Error as e:
+            if conn:
+                conn.rollback()
             self.logger.error(f"資料庫錯誤: {str(e)}")
             raise
 

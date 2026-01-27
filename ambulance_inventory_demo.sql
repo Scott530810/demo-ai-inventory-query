@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS rag_chunks (
     chunk_index INTEGER NOT NULL,           -- 片段索引
     content TEXT NOT NULL,                  -- 片段內容
     metadata JSONB,                          -- 額外元資料
-    embedding VECTOR(1536),                  -- 向量嵌入（qwen3-embedding:8b 1536 維）
+    embedding VECTOR(768),                   -- 向量嵌入（nomic-embed-text 768 維）
     tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED  -- 全文搜索向量
 );
 

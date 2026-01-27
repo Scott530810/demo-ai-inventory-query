@@ -71,8 +71,8 @@ class RagConfig:
     def from_env(cls) -> 'RagConfig':
         """從環境變數載入配置"""
         return cls(
-            embedding_model=os.getenv('RAG_EMBEDDING_MODEL', 'qwen3-embedding:8b'),
-            embedding_dim=int(os.getenv('RAG_EMBEDDING_DIM', '1536')),
+            embedding_model=os.getenv('RAG_EMBEDDING_MODEL', 'nomic-embed-text'),
+            embedding_dim=int(os.getenv('RAG_EMBEDDING_DIM', '768')),
             chunk_size=int(os.getenv('RAG_CHUNK_SIZE', '1200')),
             chunk_overlap=int(os.getenv('RAG_CHUNK_OVERLAP', '200')),
             top_k=int(os.getenv('RAG_TOP_K', '5')),

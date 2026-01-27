@@ -75,7 +75,7 @@ class RagConfig:
             embedding_dim=int(os.getenv('RAG_EMBEDDING_DIM', '768')),
             chunk_size=int(os.getenv('RAG_CHUNK_SIZE', '1200')),
             chunk_overlap=int(os.getenv('RAG_CHUNK_OVERLAP', '200')),
-            top_k=int(os.getenv('RAG_TOP_K', '5')),
+            top_k=int(os.getenv('RAG_TOP_K', '15')),
             bm25_weight=float(os.getenv('RAG_BM25_WEIGHT', '0.3')),
             vector_weight=float(os.getenv('RAG_VECTOR_WEIGHT', '0.7'))
         )
@@ -135,20 +135,27 @@ SQL_GENERATION_PROMPT = f"""你是 PostgreSQL 專家。根據使用者問題產�
 # 回應生成的系統提示詞（改良版：加入承重/規格判斷規則）
 RESPONSE_GENERATION_PROMPT = """你是專業的救護/醫療設備庫存顧問。請只根據提供的查詢結果回答，不可編造。使用繁體中文。
 
+**重要**: 仔細檢查所有提供的型錄片段！規格資訊可能出現在：
+- SPECIFICATIONS 表格（英文格式，包含 Imperial 和 Metric 兩行）
+- "Load Limit" 或 "載重" 或 "最大載重" 欄位
+- 數值如 "180 KG", "181 kg", "295 kg", "400 lb", "650 lb"
+
 輸出格式(結果非空時只輸出兩段):
 1) 摘要: 1 句總結。
 2) 主要結果: 最多列 5 筆，使用項目符號，每筆只包含結果裡有的欄位。
 
 特殊規則:
 - **承重/數值門檻查詢**: 如果問題涉及承重、重量限制、載重等數值判斷：
-  * 必須明確列出每個產品的 Load Limit 或承重數值
-  * 明確判斷是否符合需求（如「符合 300kg 以上」或「不符合」）
-  * 如果型錄資料未提供數值，明確說明「資料未提供承重資訊」
+  * **必須仔細查找所有片段**中的 "Load Limit", "載重", "180", "181", "295", "400 lb", "650 lb" 等關鍵字
+  * 對於 SPECIFICATIONS 表格，Load Limit 通常在中間欄位，格式為 "400 lb" (Imperial) 和 "181 kg" (Metric)
+  * 必須明確列出每個產品的承重數值（如「Model 24: 180 kg」）
+  * 明確判斷是否符合需求（如「符合 250kg 以上」、「不符合，僅 180kg」）
+  * **只有在確認所有片段都沒有承重資訊時**，才說「資料未提供承重資訊」
 
 - **規格查詢**: 如果問題要求列出規格：
   * 優先列出 SPECIFICATIONS 表格中的關鍵參數
   * 包含尺寸、重量、材質、角度等具體數值
-  * 使用結構化格式呈現（如「尺寸: xxx, 重量: xxx」）
+  * 使用結構化格式呈現（如「尺寸: xxx, 重量: xxx, 承重: xxx」）
 
 - **型號/品牌查詢**: 明確列出型號和品牌資訊
 

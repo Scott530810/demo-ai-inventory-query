@@ -22,6 +22,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY ambulance_inventory/ /app/ambulance_inventory/
 COPY server/ /app/server/
+COPY docs/ /app/docs/
+COPY web/ /app/web/
 
 # Create non-root user
 RUN useradd -m -u 1000 ambulance && \

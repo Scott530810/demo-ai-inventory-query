@@ -1168,13 +1168,25 @@
                         </div>
                     `;
                 } else if (data.result_count === 0) {
-                    // LLM 模式但無結果
-                    contentHtml += `
-                        <div class="answer-box" style="background: #f0fdf4; border-left-color: #22c55e;">
-                            <strong>🤖 LLM 模式</strong><br><br>
-                            查無資料，無法生成 LLM 回答。
-                        </div>
-                    `;
+                    // 檢查是否有 RAG 資料
+                    if (data.rag_context && data.rag_context.length > 0) {
+                        // 有 RAG 資料但 LLM 回答失敗或為空
+                        contentHtml += `
+                            <div class="answer-box" style="background: #dbeafe; border-left-color: #3b82f6;">
+                                <strong>📚 型錄檢索成功</strong><br><br>
+                                已找到 ${data.rag_context.length} 個相關型錄片段，但 LLM 回答生成失敗或超時。<br>
+                                請切換到「型錄資料」標籤查看檢索結果。
+                            </div>
+                        `;
+                    } else {
+                        // 沒有 SQL 結果也沒有 RAG 資料
+                        contentHtml += `
+                            <div class="answer-box" style="background: #f0fdf4; border-left-color: #22c55e;">
+                                <strong>🤖 LLM 模式</strong><br><br>
+                                查無資料，無法生成 LLM 回答。
+                            </div>
+                        `;
+                    }
                 } else {
                     // 其他情況（LLM 失敗等）
                     contentHtml += `

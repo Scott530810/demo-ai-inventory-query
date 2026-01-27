@@ -8,7 +8,7 @@ import time
 from typing import Optional, Tuple, Dict
 import logging
 
-from .config import SQL_GENERATION_PROMPT, RESPONSE_GENERATION_PROMPT
+from .config import SQL_GENERATION_PROMPT, RESPONSE_GENERATION_PROMPT, RAG_RESPONSE_PROMPT
 from .database import DatabaseClient
 from .ollama_client import OllamaClient
 from .utils.validators import clean_sql, validate_sql
@@ -94,7 +94,8 @@ class QueryEngine:
         self,
         question: str,
         results: list,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        rag_context: Optional[list] = None
     ) -> Optional[str]:
         """
         根據查詢結果生成友善的回應
@@ -107,13 +108,13 @@ class QueryEngine:
         Returns:
             生成的回應文本
         """
-        if not results:
+        if not results and not rag_context:
             return "抱歉，沒有找到相關資料。"
 
         self.logger.info(f"生成回應，結果數: {len(results)}")
 
         # 格式化結果（限制數量）
-        formatted_results = self.db_client.format_results(results, limit=20)
+        formatted_results = self.db_client.format_results(results, limit=20) if results else []
 
         # 轉換為 JSON 字串
         try:
@@ -126,18 +127,30 @@ class QueryEngine:
             self.logger.error(f"結果序列化失敗: {str(e)}")
             return self._generate_simple_response(results)
 
-        # 構建提示詞
-        prompt = f"""使用者問題: {question}
+        if rag_context:
+            context_json = json.dumps(rag_context, ensure_ascii=False, indent=2)
+            prompt = f"""使用者問題: {question}
+
+查詢結果:
+{results_json}
+
+型錄內容:
+{context_json}
+"""
+            system_prompt = RAG_RESPONSE_PROMPT
+        else:
+            prompt = f"""使用者問題: {question}
 
 查詢結果:
 {results_json}
 
 請根據查詢結果，用友善專業的方式回答使用者的問題。"""
+            system_prompt = RESPONSE_GENERATION_PROMPT
 
         # 調用 Ollama 生成回應 (使用較低 temperature 確保一致性)
         response = self.ollama_client.generate(
             prompt=prompt,
-            system_prompt=RESPONSE_GENERATION_PROMPT,
+            system_prompt=system_prompt,
             temperature=0.1,
             model=model
         )
@@ -398,7 +411,8 @@ class QueryEngine:
         self,
         question: str,
         use_llm_answer: bool = True,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        rag_context: Optional[list] = None
     ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[list], Dict[str, float]]:
         """
         支援雙模式的查詢流程
@@ -458,7 +472,7 @@ class QueryEngine:
         if use_llm_answer and results:
             print("🤖 正在請求 Ollama 生成回應...")
             t0 = time.time()
-            llm_answer = self.generate_response(question, results, model=use_model)
+            llm_answer = self.generate_response(question, results, model=use_model, rag_context=rag_context)
             timing['llm_response'] = round(time.time() - t0, 2)
         elif not results:
             llm_answer = "抱歉，沒有找到相關資料。"

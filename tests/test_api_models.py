@@ -22,6 +22,8 @@ class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1, description="使用者的問題")
     model: Optional[str] = Field(None, description="指定使用的模型")
     use_llm_answer: bool = Field(True, description="是否使用 LLM 生成回答")
+    rag_mode: Optional[str] = Field("sql_only", description="RAG 模式")
+    rag_top_k: Optional[int] = Field(None, description="RAG 取用片段數量")
 
     @field_validator('question')
     @classmethod
@@ -40,6 +42,8 @@ class QueryResponse(BaseModel):
     answer_html: Optional[str] = None
     results: Optional[List[Any]] = None
     result_count: Optional[int] = None
+    rag_context: Optional[List[Any]] = None
+    rag_mode: Optional[str] = None
     model_used: Optional[str] = Field(None, description="實際使用的模型名稱")
     use_llm_answer: Optional[bool] = Field(None, description="是否使用 LLM 生成回答（實際執行的模式）")
     success: bool
@@ -66,17 +70,22 @@ class TestQueryRequest:
         assert request.question == "列出所有庫存"
         assert request.model is None
         assert request.use_llm_answer is True
+        assert request.rag_mode == "sql_only"
 
     def test_request_with_model(self):
         """測試帶模型的請求"""
         request = QueryRequest(
             question="列出所有庫存",
             model="qwen3:8b",
-            use_llm_answer=False
+            use_llm_answer=False,
+            rag_mode="hybrid",
+            rag_top_k=5
         )
         assert request.question == "列出所有庫存"
         assert request.model == "qwen3:8b"
         assert request.use_llm_answer is False
+        assert request.rag_mode == "hybrid"
+        assert request.rag_top_k == 5
 
     def test_empty_question(self):
         """測試空問題"""
@@ -112,6 +121,8 @@ class TestQueryResponse:
             answer_html="<table></table>",
             results=[{"id": 1, "name": "AED"}],
             result_count=1,
+            rag_context=[{"content": "spec"}],
+            rag_mode="hybrid",
             model_used="qwen3:8b",
             use_llm_answer=True,
             success=True,
@@ -121,6 +132,7 @@ class TestQueryResponse:
         assert response.model_used == "qwen3:8b"
         assert response.use_llm_answer is True
         assert response.result_count == 1
+        assert response.rag_mode == "hybrid"
 
     def test_error_response(self):
         """測試錯誤回應"""
@@ -195,6 +207,8 @@ class TestQueryResponse:
         assert response.answer_html is None
         assert response.results is None
         assert response.result_count is None
+        assert response.rag_context is None
+        assert response.rag_mode is None
         assert response.model_used is None
         assert response.use_llm_answer is None
         assert response.error is None

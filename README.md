@@ -112,6 +112,34 @@ curl http://localhost:8000/query \
 
 ---
 
+## RAG 型錄查詢（混合檢索）
+
+可將型錄資料寫入 RAG 索引，支援「SQL 庫存 + 型錄內容」混合回答。
+
+### 1) 放置型錄
+將 PDF/DOC 放入 `docs/catalogs/`。
+
+### 2) 建立索引
+```bash
+python scripts/rag_ingest.py docs/catalogs
+```
+
+### 3) 查詢時啟用 RAG
+```bash
+curl http://localhost:8000/query \
+     -H "Content-Type: application/json" \
+     -d '{"question": "Ferno 24-7 規格與庫存", "rag_mode": "hybrid", "rag_top_k": 8}'
+```
+
+### RAG 相關環境變數
+- `RAG_EMBEDDING_MODEL`（預設：qwen3-embedding:8b）
+- `RAG_RERANK_MODEL`（預設空字串，不啟用 rerank）
+- `RAG_EMBEDDING_DIM`（預設：1536，需與資料表一致）
+- `RAG_CHUNK_SIZE` / `RAG_CHUNK_OVERLAP`
+- `RAG_BM25_K` / `RAG_VECTOR_K` / `RAG_RERANK_K` / `RAG_TOP_K`
+
+---
+
 ## 專案結構
 
 ```

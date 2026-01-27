@@ -1,6 +1,9 @@
 -- 救護車庫存資料庫 Demo 數據
 -- ============================================
 
+-- 擴充向量檢索 (pgvector)
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- 創建資料表
 CREATE TABLE IF NOT EXISTS inventory (
     product_id VARCHAR(20) PRIMARY KEY,
@@ -19,6 +22,23 @@ CREATE TABLE IF NOT EXISTS inventory (
 CREATE INDEX idx_category ON inventory(category);
 CREATE INDEX idx_brand ON inventory(brand);
 CREATE INDEX idx_stock_quantity ON inventory(stock_quantity);
+
+-- RAG 文件片段表
+CREATE TABLE IF NOT EXISTS rag_chunks (
+    id BIGSERIAL PRIMARY KEY,
+    source VARCHAR(255) NOT NULL,
+    page INTEGER,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    metadata JSONB,
+    embedding VECTOR(1536),
+    tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED
+);
+
+-- RAG 索引
+CREATE INDEX IF NOT EXISTS rag_chunks_source_idx ON rag_chunks(source);
+CREATE INDEX IF NOT EXISTS rag_chunks_tsv_idx ON rag_chunks USING GIN (tsv);
+CREATE INDEX IF NOT EXISTS rag_chunks_embedding_idx ON rag_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 -- 創建視圖：低庫存警示
 CREATE OR REPLACE VIEW low_stock_alert AS

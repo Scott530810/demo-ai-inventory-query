@@ -24,10 +24,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ambulance_inventory import __version__ as app_version
-from ambulance_inventory.config import DatabaseConfig, OllamaConfig
+from ambulance_inventory.config import DatabaseConfig, OllamaConfig, RagConfig
 from ambulance_inventory.database import DatabaseClient
 from ambulance_inventory.ollama_client import OllamaClient
 from ambulance_inventory.query_engine import QueryEngine
+from ambulance_inventory.rag.retriever import RagRetriever
 from ambulance_inventory.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -70,6 +71,7 @@ if web_dir.exists():
 db_client: Optional[DatabaseClient] = None
 ollama_client: Optional[OllamaClient] = None
 query_engine: Optional[QueryEngine] = None
+rag_retriever: Optional[RagRetriever] = None
 
 
 # Pydantic models
@@ -78,6 +80,8 @@ class QueryRequest(BaseModel):
     question: str = Field(..., description="自然語言問題", min_length=1)
     model: Optional[str] = Field(None, description="使用的模型（可選，不指定則使用當前模型）")
     use_llm_answer: bool = Field(True, description="是否使用 LLM 生成回答（False 則只用程式化格式，更快）")
+    rag_mode: Optional[str] = Field("sql_only", description="RAG 模式：sql_only / rag_only / hybrid")
+    rag_top_k: Optional[int] = Field(None, description="RAG 取用片段數量（可選）")
 
     class Config:
         json_schema_extra = {
@@ -118,6 +122,8 @@ class QueryResponse(BaseModel):
     answer_html: Optional[str] = Field(None, description="HTML 表格格式（完美對齊，推薦用於 Web）")
     results: Optional[List[Dict[str, Any]]] = Field(None, description="原始查詢結果")
     result_count: Optional[int] = Field(None, description="結果筆數")
+    rag_context: Optional[List[Dict[str, Any]]] = Field(None, description="RAG 檢索結果（片段）")
+    rag_mode: Optional[str] = Field(None, description="RAG 模式")
     model_used: Optional[str] = Field(None, description="實際使用的模型名稱")
     use_llm_answer: Optional[bool] = Field(None, description="是否使用 LLM 生成回答（實際執行的模式）")
     elapsed_time: Optional[float] = Field(None, description="總耗時（秒）")
@@ -144,7 +150,7 @@ class TableInfo(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """服務器啟動時初始化"""
-    global db_client, ollama_client, query_engine
+    global db_client, ollama_client, query_engine, rag_retriever
 
     try:
         logger.info("🚀 Initializing API server...")
@@ -162,6 +168,11 @@ async def startup_event():
         # Initialize query engine
         query_engine = QueryEngine(db_client, ollama_client)
         logger.info("✅ Query engine initialized")
+
+        # Initialize RAG retriever
+        rag_config = RagConfig.from_env()
+        rag_retriever = RagRetriever(db_client, ollama_client, rag_config)
+        logger.info("✅ RAG retriever initialized")
 
         logger.info("🎉 API server ready for remote connections!")
 
@@ -270,6 +281,8 @@ async def query(request: QueryRequest):
             answer_html=None,
             results=None,
             result_count=None,
+            rag_context=None,
+            rag_mode=request.rag_mode,
             model_used=ollama_client.config.model if ollama_client else None,
             use_llm_answer=request.use_llm_answer,
             elapsed_time=round(time.time() - start_time, 2),
@@ -294,11 +307,59 @@ async def query(request: QueryRequest):
 
         logger.info(f"📝 Received query: {request.question} (use_llm_answer={request.use_llm_answer}, model={actual_model_used})")
 
+        # RAG retrieval (optional)
+        rag_context = None
+        rag_mode = request.rag_mode or "sql_only"
+        if rag_mode in {"rag_only", "hybrid"}:
+            if not rag_retriever:
+                raise HTTPException(status_code=503, detail="RAG retriever not initialized")
+            rag_results = rag_retriever.retrieve(request.question, top_k=request.rag_top_k)
+            rag_context = [
+                {
+                    "source": r.source,
+                    "page": r.page,
+                    "chunk_index": r.chunk_index,
+                    "content": r.content,
+                    "score": r.score,
+                    "metadata": r.metadata
+                }
+                for r in rag_results
+            ]
+
+        if rag_mode == "rag_only":
+            llm_answer = ""
+            if request.use_llm_answer:
+                llm_answer = query_engine.generate_response(
+                    request.question,
+                    results=[],
+                    model=actual_model_used,
+                    rag_context=rag_context
+                ) or ""
+            elapsed = round(time.time() - start_time, 2)
+            return QueryResponse(
+                question=request.question,
+                sql="",
+                answer=llm_answer,
+                answer_formatted=None,
+                answer_html=None,
+                results=None,
+                result_count=None,
+                rag_context=rag_context,
+                rag_mode=rag_mode,
+                model_used=actual_model_used,
+                use_llm_answer=request.use_llm_answer,
+                elapsed_time=elapsed,
+                timing=TimingInfo(total=elapsed),
+                success=True,
+                error=None
+            )
+
         # Execute query with mode - pass model as parameter (thread-safe)
         sql, llm_answer, formatted_answer, html_table, raw_results, step_timing = query_engine.query_with_mode(
             request.question,
             use_llm_answer=request.use_llm_answer,
-            model=actual_model_used
+            model=actual_model_used,
+            rag_context=rag_context
         )
 
         # Handle None values (Ollama might have failed silently)
@@ -312,6 +373,8 @@ async def query(request: QueryRequest):
                 answer_html=None,
                 results=None,
                 result_count=None,
+                rag_context=rag_context,
+                rag_mode=rag_mode,
                 model_used=actual_model_used,
                 use_llm_answer=request.use_llm_answer,
                 elapsed_time=elapsed,
@@ -323,7 +386,7 @@ async def query(request: QueryRequest):
                 error="Query failed - Ollama may not be responding. Check if Ollama service is running."
             )
 
-        if raw_results is None:
+        if raw_results is None and rag_mode != "rag_only":
             elapsed = round(time.time() - start_time, 2)
             return QueryResponse(
                 question=request.question,
@@ -333,6 +396,8 @@ async def query(request: QueryRequest):
                 answer_html=None,
                 results=None,
                 result_count=None,
+                rag_context=rag_context,
+                rag_mode=rag_mode,
                 model_used=actual_model_used,
                 use_llm_answer=request.use_llm_answer,
                 elapsed_time=elapsed,
@@ -356,6 +421,8 @@ async def query(request: QueryRequest):
             answer_html=html_table,
             results=raw_results,
             result_count=len(raw_results) if raw_results else 0,
+            rag_context=rag_context,
+            rag_mode=rag_mode,
             model_used=actual_model_used,
             use_llm_answer=request.use_llm_answer,
             elapsed_time=elapsed,
@@ -380,6 +447,8 @@ async def query(request: QueryRequest):
             answer_html=None,
             results=None,
             result_count=None,
+            rag_context=None,
+            rag_mode=request.rag_mode,
             model_used=request.model or (ollama_client.config.model if ollama_client else None),
             use_llm_answer=request.use_llm_answer,
             elapsed_time=round(time.time() - start_time, 2),

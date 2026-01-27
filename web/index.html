@@ -435,6 +435,72 @@
             color: #4c1d95;
         }
 
+        .rag-options {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .rag-badge {
+            background: #eef2ff;
+            color: #4338ca;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .rag-info {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .rag-source-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .rag-source-pill {
+            background: #f5f3ff;
+            color: #5b21b6;
+            border: 1px solid #ddd6fe;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+
+        .rag-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 12px;
+            background: #fafafa;
+        }
+
+        .rag-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+
+        .rag-card-title {
+            font-weight: 600;
+            color: #4338ca;
+        }
+
+        .rag-highlight {
+            background: #fef9c3;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
         .config-section {
             padding: 15px 25px;
             background: #f9fafb;
@@ -446,6 +512,20 @@
             gap: 15px;
             align-items: center;
             flex-wrap: wrap;
+        }
+
+        .config-row + .config-row {
+            margin-top: 12px;
+        }
+
+        .config-row.secondary {
+            padding-top: 10px;
+            border-top: 1px dashed #e5e7eb;
+        }
+
+        .config-label {
+            font-weight: 600;
+            color: #4b5563;
         }
 
         .config-input {
@@ -645,6 +725,18 @@
                         (快速模式只生成SQL，不用LLM生成回答)
                     </span>
                 </div>
+                <div class="rag-options">
+                    <span class="rag-badge">RAG</span>
+                    <label for="ragMode">模式:</label>
+                    <select id="ragMode" class="config-input">
+                        <option value="sql_only">SQL Only</option>
+                        <option value="hybrid">Hybrid</option>
+                        <option value="rag_only">RAG Only</option>
+                    </select>
+                    <label for="ragTopK">Top K:</label>
+                    <input type="number" id="ragTopK" class="config-input" value="8" min="1" max="50" style="width: 80px;">
+                    <span class="rag-info">(Hybrid 會合併庫存 + 型錄)</span>
+                </div>
             </div>
 
             <div class="demo-section">
@@ -662,9 +754,10 @@
                 <h2>📋 查詢結果</h2>
                 <div id="resultTabs" style="display: none;">
                     <div class="output-tabs">
-                        <button class="output-tab active" onclick="switchOutputTab('llm')">🤖 LLM 回答</button>
-                        <button class="output-tab" onclick="switchOutputTab('table')">📊 表格格式</button>
-                        <button class="output-tab" onclick="switchOutputTab('raw')">📄 原始資料</button>
+                        <button class="output-tab active" data-tab="llm" onclick="switchOutputTab('llm')">🤖 LLM 回答</button>
+                        <button class="output-tab" data-tab="table" onclick="switchOutputTab('table')">📊 表格格式</button>
+                        <button class="output-tab" data-tab="raw" onclick="switchOutputTab('raw')">📄 原始資料</button>
+                        <button class="output-tab" data-tab="rag" onclick="switchOutputTab('rag')">📚 型錄內容</button>
                     </div>
                 </div>
                 <div id="result">
@@ -678,8 +771,8 @@
             <div class="config-section">
                 <div class="config-row">
                     <label>快速切換:</label>
-                    <button class="server-btn" onclick="switchServer('localhost', 8000)">🏠 本地</button>
-                    <button class="server-btn" onclick="switchServer('192.168.50.2', 8000)">🖥️ SPARK</button>
+                    <button class="server-btn" data-server="local" onclick="switchServer('localhost', 8000)">🏠 本地</button>
+                    <button class="server-btn" data-server="spark" onclick="switchServer('192.168.50.2', 8000)">🖥️ SPARK</button>
                     <span style="color: #9ca3af; margin: 0 10px;">|</span>
                     <label>自訂:</label>
                     <input type="text" id="serverHost" class="config-input" value="192.168.50.2" style="width: 120px;">
@@ -688,6 +781,16 @@
                     <button class="btn" style="padding: 8px 15px; font-size: 14px;" onclick="saveConfig()">
                         💾 儲存
                     </button>
+                </div>
+                <div class="config-row secondary">
+                    <span class="config-label">RAG 進階</span>
+                    <label>BM25 K</label>
+                    <input type="number" id="ragBm25K" class="config-input" value="50" min="1" max="200" style="width: 80px;">
+                    <label>Vector K</label>
+                    <input type="number" id="ragVectorK" class="config-input" value="50" min="1" max="200" style="width: 80px;">
+                    <label>Rerank K</label>
+                    <input type="number" id="ragRerankK" class="config-input" value="10" min="1" max="100" style="width: 80px;">
+                    <span class="rag-info">（目前 UI 只顯示，實際參數仍以環境變數為準）</span>
                 </div>
             </div>
         </div>
@@ -708,6 +811,10 @@
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('serverHost').value = config.host;
             document.getElementById('serverPort').value = config.port;
+            const ragModeSaved = localStorage.getItem('rag_mode');
+            const ragTopKSaved = localStorage.getItem('rag_top_k');
+            if (ragModeSaved) document.getElementById('ragMode').value = ragModeSaved;
+            if (ragTopKSaved) document.getElementById('ragTopK').value = ragTopKSaved;
             updateServerButtons();
             checkHealth();
         });
@@ -721,6 +828,8 @@
             config.port = document.getElementById('serverPort').value;
             localStorage.setItem('spark_host', config.host);
             localStorage.setItem('spark_port', config.port);
+            localStorage.setItem('rag_mode', document.getElementById('ragMode').value);
+            localStorage.setItem('rag_top_k', document.getElementById('ragTopK').value);
             updateServerButtons();
             alert('設定已儲存！');
             checkHealth();
@@ -742,9 +851,9 @@
                 btn.classList.remove('active');
             });
             if (config.host === 'localhost' && config.port === '8000') {
-                document.querySelector('.server-btn:nth-child(2)')?.classList.add('active');
+                document.querySelector('.server-btn[data-server="local"]')?.classList.add('active');
             } else if (config.host === '192.168.50.2' && config.port === '8000') {
-                document.querySelector('.server-btn:nth-child(3)')?.classList.add('active');
+                document.querySelector('.server-btn[data-server="spark"]')?.classList.add('active');
             }
         }
 
@@ -790,6 +899,8 @@
             const tabsDiv = document.getElementById('resultTabs');
             const sendBtn = document.getElementById('sendBtn');
             const useLlm = document.getElementById('useLlmToggle').checked;
+            const ragMode = document.getElementById('ragMode').value;
+            const ragTopK = parseInt(document.getElementById('ragTopK').value, 10) || null;
             const question = input.value.trim();
 
             if (!question) {
@@ -819,7 +930,9 @@
                     body: JSON.stringify({
                         question: question,
                         model: currentModel || null,
-                        use_llm_answer: useLlm
+                        use_llm_answer: useLlm,
+                        rag_mode: ragMode,
+                        rag_top_k: ragTopK
                     })
                 });
 
@@ -903,7 +1016,8 @@
         function switchOutputTab(tab) {
             // Update tab buttons
             document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            const target = document.querySelector(`.output-tab[data-tab="${tab}"]`);
+            if (target) target.classList.add('active');
 
             // Show corresponding content
             if (lastQueryResult) {
@@ -930,12 +1044,15 @@
 
             // Update tab button states
             document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.output-tab:nth-child(${activeTab === 'llm' ? 1 : activeTab === 'table' ? 2 : 3})`).classList.add('active');
+            const activeButton = document.querySelector(`.output-tab[data-tab="${activeTab}"]`);
+            if (activeButton) activeButton.classList.add('active');
 
             const modelInfo = data.model_used ? `<span style="margin-left: 15px;">🤖 模型: <strong>${escapeHtml(data.model_used)}</strong></span>` : '';
             const modeInfo = data.use_llm_answer !== undefined
                 ? `<span style="margin-left: 15px;">${data.use_llm_answer ? '🤖 LLM模式' : '⚡ 快速模式'}</span>`
                 : '';
+            const ragModeInfo = data.rag_mode ? `<span style="margin-left: 15px;">📚 ${escapeHtml(data.rag_mode)}</span>` : '';
+            const ragCountInfo = data.rag_context ? `<span style="margin-left: 8px;">(${data.rag_context.length} 片段)</span>` : '';
 
             // 詳細計時資訊
             let timeInfo = '';
@@ -966,12 +1083,27 @@
                 }
             }
 
-            let contentHtml = `
-                <div class="sql-box">
-                    <div style="font-weight: bold; margin-bottom: 8px;">📊 SQL 查詢:</div>
-                    <div>${escapeHtml(data.sql)}</div>
+            let contentHtml = '';
+            if (data.sql !== undefined && data.sql !== null && data.sql !== '') {
+                contentHtml += `
+                    <div class="sql-box">
+                        <div style="font-weight: bold; margin-bottom: 8px;">📊 SQL 查詢:</div>
+                        <div>${escapeHtml(data.sql)}</div>
+                    </div>
+                `;
+            } else if (data.rag_mode === 'rag_only') {
+                contentHtml += `
+                    <div class="sql-box">
+                        <div style="font-weight: bold; margin-bottom: 8px;">📚 RAG Only 模式</div>
+                        <div>此模式不執行 SQL</div>
+                    </div>
+                `;
+            }
+
+            contentHtml += `
+                <div class="result-count">
+                    共 ${data.result_count || 0} 筆結果${modelInfo}${modeInfo}${ragModeInfo}${ragCountInfo}
                 </div>
-                <div class="result-count">共 ${data.result_count || 0} 筆結果${modelInfo}${modeInfo}</div>
                 ${timingDetail}
             `;
 
@@ -1033,9 +1165,63 @@
                 } else {
                     contentHtml += `<div class="answer-box">無原始資料</div>`;
                 }
+            } else if (activeTab === 'rag') {
+                if (data.rag_context && data.rag_context.length > 0) {
+                    const sources = [...new Set(data.rag_context.map(item => `${item.source}${item.page ? ' p.' + item.page : ''}`))];
+                    const highlightTerms = extractHighlightTerms(document.getElementById('queryInput').value || '');
+                    const cards = data.rag_context.map((item, index) => {
+                        const content = highlightText(item.content || '', highlightTerms);
+                        const header = `${item.source}${item.page ? ' • p.' + item.page : ''}`;
+                        return `
+                            <div class="rag-card">
+                                <div class="rag-card-header">
+                                    <span class="rag-card-title">#${index + 1} ${escapeHtml(header)}</span>
+                                    <span>score: ${item.score?.toFixed ? item.score.toFixed(3) : item.score}</span>
+                                </div>
+                                <div>${content}</div>
+                            </div>
+                        `;
+                    }).join('');
+                    contentHtml += `
+                        <div class="answer-box" style="background: #eef2ff; border-left-color: #6366f1;">
+                            <strong>📚 來源</strong>
+                            <div class="rag-source-list">
+                                ${sources.map(s => `<span class="rag-source-pill">${escapeHtml(s)}</span>`).join('')}
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            ${cards}
+                        </div>
+                    `;
+                } else {
+                    contentHtml += `<div class="answer-box">無型錄片段</div>`;
+                }
             }
 
             resultDiv.innerHTML = contentHtml;
+        }
+
+        function extractHighlightTerms(text) {
+            if (!text) return [];
+            const tokens = text.split(/\s+/).filter(Boolean);
+            const dedup = [];
+            tokens.forEach(token => {
+                const t = token.trim();
+                if (t.length < 2) return;
+                if (!dedup.includes(t)) dedup.push(t);
+            });
+            return dedup.slice(0, 8);
+        }
+
+        function highlightText(text, terms) {
+            if (!text) return '';
+            let safe = escapeHtml(text);
+            terms.forEach(term => {
+                const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(escaped, 'gi');
+                safe = safe.replace(regex, match => `<span class="rag-highlight">${match}</span>`);
+            });
+            return safe.replace(/\n/g, '<br>');
         }
 
         // Model selector functions

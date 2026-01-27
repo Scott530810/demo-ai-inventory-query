@@ -4,13 +4,15 @@
 """
 
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, execute_values
 from typing import List, Dict, Any, Optional
 from decimal import Decimal
+import json
 import logging
 
 from .config import DatabaseConfig
 from .utils.logger import get_logger
+from .rag.types import RagChunk
 
 
 class DatabaseClient:
@@ -100,6 +102,77 @@ class DatabaseClient:
         清理資源（目前為無狀態連線，保留介面相容）
         """
         return None
+
+    def insert_rag_chunks(self, chunks: List[RagChunk]) -> None:
+        """
+        批次寫入 RAG 文件片段
+        """
+        if not chunks:
+            return
+
+        self.delete_rag_chunks_by_source({chunk.source for chunk in chunks})
+
+        sql = """
+        INSERT INTO rag_chunks (source, page, chunk_index, content, metadata, embedding)
+        VALUES %s
+        """
+
+        values = []
+        for chunk in chunks:
+            embedding = None
+            if chunk.embedding is not None:
+                embedding = "[" + ",".join(f"{v:.6f}" for v in chunk.embedding) + "]"
+            values.append(
+                (
+                    chunk.source,
+                    chunk.page,
+                    chunk.chunk_index,
+                    chunk.content,
+                    json.dumps(chunk.metadata, ensure_ascii=False),
+                    embedding
+                )
+            )
+
+        conn = None
+        cursor = None
+        try:
+            conn = psycopg2.connect(**self.config.to_dict())
+            cursor = conn.cursor()
+            execute_values(cursor, sql, values)
+            conn.commit()
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            self.logger.error(f"寫入 RAG 片段失敗: {str(e)}")
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    def delete_rag_chunks_by_source(self, sources: set[str]) -> None:
+        if not sources:
+            return
+
+        sql = "DELETE FROM rag_chunks WHERE source = ANY(%s);"
+        conn = None
+        cursor = None
+        try:
+            conn = psycopg2.connect(**self.config.to_dict())
+            cursor = conn.cursor()
+            cursor.execute(sql, (list(sources),))
+            conn.commit()
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            self.logger.error(f"清除 RAG 片段失敗: {str(e)}")
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
     def get_inventory_count(self) -> int:
         """

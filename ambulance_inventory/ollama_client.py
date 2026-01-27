@@ -25,6 +25,7 @@ class OllamaClient:
         self.logger = get_logger(__name__)
         self.api_url = f"{config.host}/api/generate"
         self.tags_url = f"{config.host}/api/tags"
+        self.embed_url = f"{config.host}/api/embeddings"
 
     def generate(
         self,
@@ -89,6 +90,40 @@ class OllamaClient:
         except Exception as e:
             self.logger.error(f"Ollama 錯誤: {str(e)}")
             print(f"❌ Ollama 錯誤: {str(e)}")
+            return None
+
+    def embed(self, text: str, model: Optional[str] = None) -> Optional[list]:
+        """
+        調用 Ollama 生成嵌入向量
+
+        Args:
+            text: 輸入文字
+            model: 嵌入模型（可選，不指定則使用預設模型）
+
+        Returns:
+            向量 list，失敗時返回 None
+        """
+        try:
+            use_model = model if model else self.config.model
+            payload = {
+                "model": use_model,
+                "prompt": text
+            }
+
+            self.logger.debug(f"調用 Ollama Embedding API: {self.embed_url} (model: {use_model})")
+            response = requests.post(self.embed_url, json=payload, timeout=self.config.timeout)
+            response.raise_for_status()
+
+            result = response.json()
+            embedding = result.get("embedding")
+            if not embedding:
+                self.logger.error("Ollama 嵌入回應缺少 embedding 欄位")
+                return None
+
+            return embedding
+
+        except Exception as e:
+            self.logger.error(f"Ollama 嵌入錯誤: {str(e)}")
             return None
 
     def test_connection(self) -> bool:

@@ -56,6 +56,35 @@ class OllamaConfig:
         )
 
 
+@dataclass
+class RagConfig:
+    """RAG 配置"""
+    embedding_model: str
+    rerank_model: str
+    embedding_dim: int
+    chunk_size: int
+    chunk_overlap: int
+    bm25_k: int
+    vector_k: int
+    rerank_k: int
+    top_k: int
+
+    @classmethod
+    def from_env(cls) -> 'RagConfig':
+        """從環境變數載入 RAG 配置"""
+        return cls(
+            embedding_model=os.getenv('RAG_EMBEDDING_MODEL', 'qwen3-embedding:8b'),
+            rerank_model=os.getenv('RAG_RERANK_MODEL', ''),
+            embedding_dim=int(os.getenv('RAG_EMBEDDING_DIM', '1536')),
+            chunk_size=int(os.getenv('RAG_CHUNK_SIZE', '1200')),
+            chunk_overlap=int(os.getenv('RAG_CHUNK_OVERLAP', '200')),
+            bm25_k=int(os.getenv('RAG_BM25_K', '50')),
+            vector_k=int(os.getenv('RAG_VECTOR_K', '50')),
+            rerank_k=int(os.getenv('RAG_RERANK_K', '10')),
+            top_k=int(os.getenv('RAG_TOP_K', '8'))
+        )
+
+
 # 資料庫 Schema 定義
 DATABASE_SCHEMA = """
 資料表名稱: inventory
@@ -118,6 +147,18 @@ RESPONSE_GENERATION_PROMPT = """你是專業的救護/醫療設備庫存顧問�
 - 不要輸出 SQL、JSON 或任何系統描述。
 - 不要提供額外建議或延伸說明。
 - 控制在 200 字內，語氣簡潔專業。
+"""
+
+# RAG 回應的系統提示詞（混合：SQL + 型錄）
+RAG_RESPONSE_PROMPT = """你是專業的救護/醫療設備庫存顧問。請根據「查詢結果」與「型錄內容」回答，不可編造。使用繁體中文。
+
+規則:
+1) 庫存數量、價格等以查詢結果為準。
+2) 規格/尺寸/型號/配件等可引用型錄內容。
+3) 若資訊不足，明確說明「型錄未提及」或「查詢結果未提供」。
+4) 若問題涉及承重/載重/負重或有數值門檻，請從型錄中列出 Load Limit/承重數值，並判斷是否符合條件。
+5) 不要輸出 SQL、JSON 或任何系統描述。
+6) 控制在 220 字內，語氣簡潔專業。
 """
 
 # Demo 查詢問題 - 設計為明確且單一目標的問題

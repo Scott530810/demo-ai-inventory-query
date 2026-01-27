@@ -67,12 +67,14 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 8000
 
-      # RAG Configuration
-      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-nomic-embed-text}
-      RAG_EMBEDDING_DIM: ${RAG_EMBEDDING_DIM:-768}
-      RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-500}
-      RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-50}
+      # RAG Configuration（混合檢索）
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-qwen3-embedding:8b}
+      RAG_EMBEDDING_DIM: ${RAG_EMBEDDING_DIM:-1536}
+      RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-1200}
+      RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-200}
       RAG_TOP_K: ${RAG_TOP_K:-5}
+      RAG_BM25_WEIGHT: ${RAG_BM25_WEIGHT:-0.3}
+      RAG_VECTOR_WEIGHT: ${RAG_VECTOR_WEIGHT:-0.7}
     ports:
       - "8000:8000"
     extra_hosts:

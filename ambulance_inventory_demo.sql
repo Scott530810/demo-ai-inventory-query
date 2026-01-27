@@ -4,35 +4,6 @@
 -- 啟用 pgvector 擴展（用於 RAG 向量搜尋）
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- ============================================
--- RAG 文件片段表
--- ============================================
-CREATE TABLE IF NOT EXISTS document_chunks (
-    id SERIAL PRIMARY KEY,
-    source VARCHAR(255) NOT NULL,           -- 來源文件名稱
-    page INTEGER,                            -- 頁碼（PDF）
-    chunk_index INTEGER NOT NULL,           -- 片段索引
-    content TEXT NOT NULL,                  -- 片段內容
-    embedding vector(768),                  -- 向量嵌入（nomic-embed-text 預設 768 維）
-    metadata JSONB DEFAULT '{}',            -- 額外元資料
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 創建向量索引（使用 IVFFlat 加速搜尋）
-CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding
-ON document_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-
--- 創建全文搜索索引
-CREATE INDEX IF NOT EXISTS idx_document_chunks_content_gin
-ON document_chunks USING gin(to_tsvector('simple', content));
-
--- 創建來源索引
-CREATE INDEX IF NOT EXISTS idx_document_chunks_source ON document_chunks(source);
-
--- ============================================
--- 庫存資料表
--- ============================================
-
 -- 創建資料表
 CREATE TABLE IF NOT EXISTS inventory (
     product_id VARCHAR(20) PRIMARY KEY,
@@ -51,6 +22,25 @@ CREATE TABLE IF NOT EXISTS inventory (
 CREATE INDEX idx_category ON inventory(category);
 CREATE INDEX idx_brand ON inventory(brand);
 CREATE INDEX idx_stock_quantity ON inventory(stock_quantity);
+
+-- ============================================
+-- RAG 文件片段表（改良版）
+-- ============================================
+CREATE TABLE IF NOT EXISTS rag_chunks (
+    id BIGSERIAL PRIMARY KEY,
+    source VARCHAR(255) NOT NULL,           -- 來源文件名稱
+    page INTEGER,                            -- 頁碼（PDF）
+    chunk_index INTEGER NOT NULL,           -- 片段索引
+    content TEXT NOT NULL,                  -- 片段內容
+    metadata JSONB,                          -- 額外元資料
+    embedding VECTOR(1536),                  -- 向量嵌入（qwen3-embedding:8b 1536 維）
+    tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED  -- 全文搜索向量
+);
+
+-- RAG 索引（混合檢索優化）
+CREATE INDEX IF NOT EXISTS rag_chunks_source_idx ON rag_chunks(source);
+CREATE INDEX IF NOT EXISTS rag_chunks_tsv_idx ON rag_chunks USING GIN (tsv);
+CREATE INDEX IF NOT EXISTS rag_chunks_embedding_idx ON rag_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 -- 創建視圖：低庫存警示
 CREATE OR REPLACE VIEW low_stock_alert AS

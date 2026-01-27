@@ -64,16 +64,20 @@ class RagConfig:
     chunk_size: int
     chunk_overlap: int
     top_k: int
+    bm25_weight: float = 0.3      # BM25 權重（混合檢索）
+    vector_weight: float = 0.7    # 向量搜索權重
 
     @classmethod
     def from_env(cls) -> 'RagConfig':
         """從環境變數載入配置"""
         return cls(
-            embedding_model=os.getenv('RAG_EMBEDDING_MODEL', 'nomic-embed-text'),
-            embedding_dim=int(os.getenv('RAG_EMBEDDING_DIM', '768')),
-            chunk_size=int(os.getenv('RAG_CHUNK_SIZE', '500')),
-            chunk_overlap=int(os.getenv('RAG_CHUNK_OVERLAP', '50')),
-            top_k=int(os.getenv('RAG_TOP_K', '5'))
+            embedding_model=os.getenv('RAG_EMBEDDING_MODEL', 'qwen3-embedding:8b'),
+            embedding_dim=int(os.getenv('RAG_EMBEDDING_DIM', '1536')),
+            chunk_size=int(os.getenv('RAG_CHUNK_SIZE', '1200')),
+            chunk_overlap=int(os.getenv('RAG_CHUNK_OVERLAP', '200')),
+            top_k=int(os.getenv('RAG_TOP_K', '5')),
+            bm25_weight=float(os.getenv('RAG_BM25_WEIGHT', '0.3')),
+            vector_weight=float(os.getenv('RAG_VECTOR_WEIGHT', '0.7'))
         )
 
 
@@ -128,17 +132,30 @@ SQL_GENERATION_PROMPT = f"""你是 PostgreSQL 專家。根據使用者問題產�
 <單行 SQL 查詢>
 """
 
-# 回應生成的系統提示詞
+# 回應生成的系統提示詞（改良版：加入承重/規格判斷規則）
 RESPONSE_GENERATION_PROMPT = """你是專業的救護/醫療設備庫存顧問。請只根據提供的查詢結果回答，不可編造。使用繁體中文。
 
 輸出格式(結果非空時只輸出兩段):
 1) 摘要: 1 句總結。
 2) 主要結果: 最多列 5 筆，使用項目符號，每筆只包含結果裡有的欄位。
 
-規則:
-- 不要輸出 SQL、JSON 或任何系統描述。
-- 不要提供額外建議或延伸說明。
-- 控制在 200 字內，語氣簡潔專業。
+特殊規則:
+- **承重/數值門檻查詢**: 如果問題涉及承重、重量限制、載重等數值判斷：
+  * 必須明確列出每個產品的 Load Limit 或承重數值
+  * 明確判斷是否符合需求（如「符合 300kg 以上」或「不符合」）
+  * 如果型錄資料未提供數值，明確說明「資料未提供承重資訊」
+
+- **規格查詢**: 如果問題要求列出規格：
+  * 優先列出 SPECIFICATIONS 表格中的關鍵參數
+  * 包含尺寸、重量、材質、角度等具體數值
+  * 使用結構化格式呈現（如「尺寸: xxx, 重量: xxx」）
+
+- **型號/品牌查詢**: 明確列出型號和品牌資訊
+
+一般規則:
+- 不要輸出 SQL、JSON 或任何系統描述
+- 不要提供額外建議或延伸說明
+- 控制在 250 字內，語氣簡潔專業
 """
 
 # Demo 查詢問題 - 設計為明確且單一目標的問題

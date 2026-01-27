@@ -4,5 +4,7 @@ RAG (Retrieval Augmented Generation) 模組
 """
 
 from .retriever import RagRetriever, RetrievalResult
+from .chunker import chunk_catalog_text, chunk_text
+from .types import RagChunk
 
-__all__ = ['RagRetriever', 'RetrievalResult']
+__all__ = ['RagRetriever', 'RetrievalResult', 'chunk_catalog_text', 'chunk_text', 'RagChunk']

@@ -89,7 +89,7 @@ class RagRetriever:
             # 檢測查詢偏好
             boost_factor = self._calculate_boost_factor(query)
 
-            # 混合檢索 SQL（BM25 + 向量相似度）
+            # 混合檢索 SQL（BM25 + 向量相似度 + 規格表加權）
             sql = """
             WITH vector_scores AS (
                 SELECT
@@ -117,7 +117,14 @@ class RagRetriever:
                     COALESCE(v.chunk_index, b.chunk_index) AS chunk_index,
                     COALESCE(v.content, b.content) AS content,
                     COALESCE(v.metadata, b.metadata) AS metadata,
-                    (COALESCE(v.vec_score, 0) * %s + COALESCE(b.bm25_score, 0) * %s) * %s AS final_score
+                    (COALESCE(v.vec_score, 0) * %s + COALESCE(b.bm25_score, 0) * %s) * %s *
+                    CASE
+                        WHEN COALESCE(v.content, b.content) ILIKE '%SPECIFICATIONS%' OR
+                             COALESCE(v.content, b.content) ILIKE '%Load Limit%' OR
+                             COALESCE(v.content, b.content) ILIKE '%規格表%'
+                        THEN 1.5
+                        ELSE 1.0
+                    END AS final_score
                 FROM vector_scores v
                 FULL OUTER JOIN bm25_scores b ON v.id = b.id
             )

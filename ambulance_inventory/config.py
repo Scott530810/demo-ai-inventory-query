@@ -56,6 +56,27 @@ class OllamaConfig:
         )
 
 
+@dataclass
+class RagConfig:
+    """RAG 配置"""
+    embedding_model: str
+    embedding_dim: int
+    chunk_size: int
+    chunk_overlap: int
+    top_k: int
+
+    @classmethod
+    def from_env(cls) -> 'RagConfig':
+        """從環境變數載入配置"""
+        return cls(
+            embedding_model=os.getenv('RAG_EMBEDDING_MODEL', 'nomic-embed-text'),
+            embedding_dim=int(os.getenv('RAG_EMBEDDING_DIM', '768')),
+            chunk_size=int(os.getenv('RAG_CHUNK_SIZE', '500')),
+            chunk_overlap=int(os.getenv('RAG_CHUNK_OVERLAP', '50')),
+            top_k=int(os.getenv('RAG_TOP_K', '5'))
+        )
+
+
 # 資料庫 Schema 定義
 DATABASE_SCHEMA = """
 資料表名稱: inventory

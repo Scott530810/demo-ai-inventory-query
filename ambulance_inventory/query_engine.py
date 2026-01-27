@@ -90,7 +90,8 @@ class QueryEngine:
         self,
         question: str,
         results: list,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        rag_context: Optional[list] = None
     ) -> Optional[str]:
         """
         根據查詢結果生成友善的回應
@@ -99,36 +100,51 @@ class QueryEngine:
             question: 原始問題
             results: 查詢結果
             model: 使用的模型（可選）
+            rag_context: RAG 檢索的上下文片段（可選）
 
         Returns:
             生成的回應文本
         """
-        if not results:
+        if not results and not rag_context:
             return "抱歉，沒有找到相關資料。"
 
-        self.logger.info(f"生成回應，結果數: {len(results)}")
+        self.logger.info(f"生成回應，結果數: {len(results) if results else 0}, RAG 片段: {len(rag_context) if rag_context else 0}")
 
-        # 格式化結果（限制數量）
-        formatted_results = self.db_client.format_results(results, limit=20)
+        # 格式化 SQL 查詢結果
+        results_section = ""
+        if results:
+            formatted_results = self.db_client.format_results(results, limit=20)
+            try:
+                results_json = json.dumps(
+                    formatted_results,
+                    ensure_ascii=False,
+                    indent=2
+                )
+                results_section = f"""
+庫存查詢結果:
+{results_json}
+"""
+            except Exception as e:
+                self.logger.error(f"結果序列化失敗: {str(e)}")
+                results_section = self._generate_simple_response(results)
 
-        # 轉換為 JSON 字串
-        try:
-            results_json = json.dumps(
-                formatted_results,
-                ensure_ascii=False,
-                indent=2
-            )
-        except Exception as e:
-            self.logger.error(f"結果序列化失敗: {str(e)}")
-            return self._generate_simple_response(results)
+        # 格式化 RAG 上下文
+        rag_section = ""
+        if rag_context:
+            rag_texts = []
+            for i, ctx in enumerate(rag_context[:5], 1):
+                source = ctx.get('source', '未知來源')
+                content = ctx.get('content', '')[:500]  # 限制長度
+                rag_texts.append(f"[{i}] 來源: {source}\n{content}")
+            rag_section = f"""
+型錄參考資料:
+{chr(10).join(rag_texts)}
+"""
 
         # 構建提示詞
         prompt = f"""使用者問題: {question}
-
-查詢結果:
-{results_json}
-
-請根據查詢結果，用友善專業的方式回答使用者的問題。"""
+{results_section}{rag_section}
+請根據以上資訊，用友善專業的方式回答使用者的問題。如果同時有庫存資料和型錄資料，請整合回答。"""
 
         # 調用 Ollama 生成回應 (使用較低 temperature 確保一致性)
         response = self.ollama_client.generate(
@@ -140,7 +156,11 @@ class QueryEngine:
 
         if not response:
             # 如果 Ollama 失敗，使用簡單格式化
-            return self._generate_simple_response(formatted_results)
+            if results:
+                return self._generate_simple_response(self.db_client.format_results(results, limit=20))
+            elif rag_context:
+                return f"找到 {len(rag_context)} 個相關型錄片段，但無法生成回應。"
+            return None
 
         return response
 

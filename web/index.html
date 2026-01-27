@@ -435,6 +435,98 @@
             color: #4c1d95;
         }
 
+        /* RAG mode selector */
+        .rag-mode-selector {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .rag-mode-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .rag-mode-btn:hover {
+            border-color: #8b5cf6;
+        }
+
+        .rag-mode-btn.active {
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            color: white;
+            border-color: #8b5cf6;
+        }
+
+        .rag-mode-btn .icon {
+            font-size: 14px;
+        }
+
+        /* RAG context display */
+        .rag-context-box {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-left: 4px solid #f59e0b;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin-top: 15px;
+        }
+
+        .rag-context-header {
+            font-weight: bold;
+            color: #92400e;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rag-source-item {
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #fcd34d;
+        }
+
+        .rag-source-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .rag-source-meta {
+            font-size: 12px;
+            color: #92400e;
+            margin-bottom: 6px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .rag-source-content {
+            font-size: 13px;
+            color: #374151;
+            line-height: 1.6;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .rag-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            background: #fef3c7;
+            color: #92400e;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
         .config-section {
             padding: 15px 25px;
             background: #f9fafb;
@@ -609,6 +701,10 @@
                 <span class="status-dot" id="ollamaStatus"></span>
                 <span>Ollama</span>
             </div>
+            <div class="status-item">
+                <span class="status-dot" id="ragStatus"></span>
+                <span>RAG <small id="ragChunks"></small></span>
+            </div>
             <div class="status-item model-selector">
                 <span>模型: <strong id="modelName">-</strong></span>
                 <button class="model-btn" onclick="toggleModelDropdown(event)">⚙️ 切換</button>
@@ -645,6 +741,23 @@
                         (快速模式只生成SQL，不用LLM生成回答)
                     </span>
                 </div>
+                <div style="margin-top: 12px;">
+                    <label style="font-size: 13px; color: #6b7280; margin-right: 10px;">📚 資料來源:</label>
+                    <div class="rag-mode-selector" style="display: inline-flex;">
+                        <button class="rag-mode-btn active" data-mode="sql_only" onclick="setRagMode('sql_only')">
+                            <span class="icon">🗄️</span> 僅庫存
+                        </button>
+                        <button class="rag-mode-btn" data-mode="hybrid" onclick="setRagMode('hybrid')">
+                            <span class="icon">🔀</span> 混合模式
+                        </button>
+                        <button class="rag-mode-btn" data-mode="rag_only" onclick="setRagMode('rag_only')">
+                            <span class="icon">📖</span> 僅型錄
+                        </button>
+                    </div>
+                    <span style="color: #9ca3af; font-size: 12px; margin-left: 10px;" id="ragModeHint">
+                        (查詢庫存資料庫)
+                    </span>
+                </div>
             </div>
 
             <div class="demo-section">
@@ -656,6 +769,12 @@
                     <button class="demo-btn" onclick="runDemo('請列出庫存數量低於10件的商品，包含產品名稱、分類和庫存數量')">低庫存商品</button>
                     <button class="demo-btn" onclick="runDemo('請列出所有Philips品牌的產品，包含名稱、型號和單價')">Philips產品</button>
                 </div>
+                <h3 style="margin-top: 15px;">📖 型錄查詢 (需切換至混合/型錄模式)</h3>
+                <div class="demo-buttons">
+                    <button class="demo-btn" onclick="runRagDemo('ZOLL AED的使用方法是什麼？')">AED使用方法</button>
+                    <button class="demo-btn" onclick="runRagDemo('Ferno擔架的規格說明')">擔架規格</button>
+                    <button class="demo-btn" onclick="runRagDemo('氧氣瓶的安全注意事項')">氧氣安全</button>
+                </div>
             </div>
 
             <div class="result-section">
@@ -664,6 +783,7 @@
                     <div class="output-tabs">
                         <button class="output-tab active" onclick="switchOutputTab('llm')">🤖 LLM 回答</button>
                         <button class="output-tab" onclick="switchOutputTab('table')">📊 表格格式</button>
+                        <button class="output-tab" onclick="switchOutputTab('rag')" id="ragTab" style="display: none;">📚 型錄參考</button>
                         <button class="output-tab" onclick="switchOutputTab('raw')">📄 原始資料</button>
                     </div>
                 </div>
@@ -693,7 +813,7 @@
         </div>
 
         <footer>
-            版本 2.4.0 | AGC AI 庫存查詢系統 | 支援 LLM/快速雙模式
+            版本 2.5.0 | AGC AI 庫存查詢系統 | 支援 LLM/快速雙模式 + RAG 型錄搜尋
         </footer>
     </div>
 
@@ -703,6 +823,24 @@
             host: localStorage.getItem('spark_host') || '192.168.50.2',
             port: localStorage.getItem('spark_port') || '8000'
         };
+
+        // RAG mode state
+        let currentRagMode = 'sql_only';
+
+        function setRagMode(mode) {
+            currentRagMode = mode;
+            // Update button states
+            document.querySelectorAll('.rag-mode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === mode);
+            });
+            // Update hint text
+            const hints = {
+                'sql_only': '(查詢庫存資料庫)',
+                'hybrid': '(同時查詢庫存+型錄)',
+                'rag_only': '(僅搜尋型錄文件)'
+            };
+            document.getElementById('ragModeHint').textContent = hints[mode] || '';
+        }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -751,11 +889,15 @@
         async function checkHealth() {
             const dbStatus = document.getElementById('dbStatus');
             const ollamaStatus = document.getElementById('ollamaStatus');
+            const ragStatus = document.getElementById('ragStatus');
+            const ragChunks = document.getElementById('ragChunks');
             const modelNameEl = document.getElementById('modelName');
 
             dbStatus.className = 'status-dot loading';
             ollamaStatus.className = 'status-dot loading';
+            ragStatus.className = 'status-dot loading';
             modelNameEl.textContent = '檢查中...';
+            ragChunks.textContent = '';
 
             try {
                 const response = await fetch(`${getBaseUrl()}/health`, {
@@ -766,6 +908,8 @@
 
                 dbStatus.className = `status-dot ${data.database ? 'ok' : 'fail'}`;
                 ollamaStatus.className = `status-dot ${data.ollama ? 'ok' : 'fail'}`;
+                ragStatus.className = `status-dot ${data.rag_enabled ? 'ok' : 'fail'}`;
+                ragChunks.textContent = data.rag_chunks > 0 ? `(${data.rag_chunks})` : '';
 
                 // Update both display and internal state
                 const serverModel = data.model || '未知';
@@ -774,12 +918,23 @@
             } catch (error) {
                 dbStatus.className = 'status-dot fail';
                 ollamaStatus.className = 'status-dot fail';
+                ragStatus.className = 'status-dot fail';
                 modelNameEl.textContent = '連線失敗';
+                ragChunks.textContent = '';
                 currentModel = '';
             }
         }
 
         function runDemo(query) {
+            document.getElementById('queryInput').value = query;
+            sendQuery();
+        }
+
+        function runRagDemo(query) {
+            // Switch to hybrid mode for RAG demos
+            if (currentRagMode === 'sql_only') {
+                setRagMode('hybrid');
+            }
             document.getElementById('queryInput').value = query;
             sendQuery();
         }
@@ -819,7 +974,9 @@
                     body: JSON.stringify({
                         question: question,
                         model: currentModel || null,
-                        use_llm_answer: useLlm
+                        use_llm_answer: useLlm,
+                        rag_mode: currentRagMode,
+                        rag_top_k: 5
                     })
                 });
 
@@ -914,6 +1071,7 @@
         function renderResult(data, activeTab = 'llm') {
             const resultDiv = document.getElementById('result');
             const tabsDiv = document.getElementById('resultTabs');
+            const ragTab = document.getElementById('ragTab');
 
             if (!data.success) {
                 tabsDiv.style.display = 'none';
@@ -928,14 +1086,22 @@
 
             tabsDiv.style.display = 'block';
 
+            // Show/hide RAG tab based on whether we have RAG context
+            const hasRagContext = data.rag_context && data.rag_context.length > 0;
+            ragTab.style.display = hasRagContext ? 'inline-block' : 'none';
+
             // Update tab button states
             document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.output-tab:nth-child(${activeTab === 'llm' ? 1 : activeTab === 'table' ? 2 : 3})`).classList.add('active');
+            const tabIndex = activeTab === 'llm' ? 1 : activeTab === 'table' ? 2 : activeTab === 'rag' ? 3 : 4;
+            const tabBtn = document.querySelector(`.output-tab:nth-child(${tabIndex})`);
+            if (tabBtn) tabBtn.classList.add('active');
 
             const modelInfo = data.model_used ? `<span style="margin-left: 15px;">🤖 模型: <strong>${escapeHtml(data.model_used)}</strong></span>` : '';
             const modeInfo = data.use_llm_answer !== undefined
                 ? `<span style="margin-left: 15px;">${data.use_llm_answer ? '🤖 LLM模式' : '⚡ 快速模式'}</span>`
                 : '';
+            const ragModeLabels = { 'sql_only': '🗄️ 僅庫存', 'hybrid': '🔀 混合', 'rag_only': '📖 僅型錄' };
+            const ragModeInfo = data.rag_mode ? `<span class="rag-badge">${ragModeLabels[data.rag_mode] || data.rag_mode}</span>` : '';
 
             // 詳細計時資訊
             let timeInfo = '';
@@ -966,12 +1132,22 @@
                 }
             }
 
-            let contentHtml = `
+            // Build SQL section (may be empty for rag_only mode)
+            const sqlSection = data.sql ? `
                 <div class="sql-box">
                     <div style="font-weight: bold; margin-bottom: 8px;">📊 SQL 查詢:</div>
                     <div>${escapeHtml(data.sql)}</div>
                 </div>
-                <div class="result-count">共 ${data.result_count || 0} 筆結果${modelInfo}${modeInfo}</div>
+            ` : '';
+
+            // Build RAG context count
+            const ragContextCount = (data.rag_context && data.rag_context.length > 0)
+                ? `<span style="margin-left: 10px;">📚 ${data.rag_context.length} 個型錄片段</span>`
+                : '';
+
+            let contentHtml = `
+                ${sqlSection}
+                <div class="result-count">共 ${data.result_count || 0} 筆結果${ragContextCount}${modelInfo}${modeInfo} ${ragModeInfo}</div>
                 ${timingDetail}
             `;
 
@@ -1021,6 +1197,31 @@
                     `;
                 } else {
                     contentHtml += `<div class="answer-box">無表格資料</div>`;
+                }
+            } else if (activeTab === 'rag') {
+                // RAG context tab
+                if (data.rag_context && data.rag_context.length > 0) {
+                    let ragHtml = '<div class="rag-context-box"><div class="rag-context-header">📚 型錄參考資料</div>';
+                    data.rag_context.forEach((ctx, index) => {
+                        const source = ctx.source || '未知來源';
+                        const page = ctx.page ? `第 ${ctx.page} 頁` : '';
+                        const score = ctx.score ? `相關度: ${(ctx.score * 100).toFixed(1)}%` : '';
+                        const content = ctx.content || '';
+                        ragHtml += `
+                            <div class="rag-source-item">
+                                <div class="rag-source-meta">
+                                    <span>📄 ${escapeHtml(source)}</span>
+                                    ${page ? `<span>${page}</span>` : ''}
+                                    ${score ? `<span>${score}</span>` : ''}
+                                </div>
+                                <div class="rag-source-content">${escapeHtml(content)}</div>
+                            </div>
+                        `;
+                    });
+                    ragHtml += '</div>';
+                    contentHtml += ragHtml;
+                } else {
+                    contentHtml += `<div class="answer-box">無型錄參考資料</div>`;
                 }
             } else if (activeTab === 'raw') {
                 if (data.results && data.results.length > 0) {

@@ -23,10 +23,11 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ambulance_inventory.config import DatabaseConfig, OllamaConfig
+from ambulance_inventory.config import DatabaseConfig, OllamaConfig, RagConfig
 from ambulance_inventory.database import DatabaseClient
 from ambulance_inventory.ollama_client import OllamaClient
 from ambulance_inventory.query_engine import QueryEngine
+from ambulance_inventory.rag import RagRetriever
 from ambulance_inventory.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,8 +35,8 @@ logger = get_logger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="Ambulance Inventory Query API",
-    description="自然語言查詢救護車設備庫存系統 - 遠端 API 版本",
-    version="2.1.0",
+    description="自然語言查詢救護車設備庫存系統 - 遠端 API 版本 (支援 RAG)",
+    version="2.5.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -58,6 +59,7 @@ if web_dir.exists():
 db_client: Optional[DatabaseClient] = None
 ollama_client: Optional[OllamaClient] = None
 query_engine: Optional[QueryEngine] = None
+rag_retriever: Optional[RagRetriever] = None
 
 
 # Pydantic models
@@ -66,13 +68,16 @@ class QueryRequest(BaseModel):
     question: str = Field(..., description="自然語言問題", min_length=1)
     model: Optional[str] = Field(None, description="使用的模型（可選，不指定則使用當前模型）")
     use_llm_answer: bool = Field(True, description="是否使用 LLM 生成回答（False 則只用程式化格式，更快）")
+    rag_mode: Optional[str] = Field("sql_only", description="RAG 模式：sql_only（僅 SQL）/ rag_only（僅型錄）/ hybrid（混合）")
+    rag_top_k: Optional[int] = Field(None, description="RAG 檢索片段數量（可選，預設使用系統設定）")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "question": "請列出所有有庫存的AED除顫器，包含品牌、型號和庫存數量",
                 "model": "llama3:70b",
-                "use_llm_answer": True
+                "use_llm_answer": True,
+                "rag_mode": "sql_only"
             }
         }
 
@@ -106,6 +111,8 @@ class QueryResponse(BaseModel):
     answer_html: Optional[str] = Field(None, description="HTML 表格格式（完美對齊，推薦用於 Web）")
     results: Optional[List[Dict[str, Any]]] = Field(None, description="原始查詢結果")
     result_count: Optional[int] = Field(None, description="結果筆數")
+    rag_context: Optional[List[Dict[str, Any]]] = Field(None, description="RAG 檢索的型錄片段")
+    rag_mode: Optional[str] = Field(None, description="RAG 模式")
     model_used: Optional[str] = Field(None, description="實際使用的模型名稱")
     use_llm_answer: Optional[bool] = Field(None, description="是否使用 LLM 生成回答（實際執行的模式）")
     elapsed_time: Optional[float] = Field(None, description="總耗時（秒）")
@@ -119,6 +126,8 @@ class HealthResponse(BaseModel):
     status: str
     database: bool
     ollama: bool
+    rag_enabled: bool = False
+    rag_chunks: int = 0
     model: str
     version: str
 
@@ -132,7 +141,7 @@ class TableInfo(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """服務器啟動時初始化"""
-    global db_client, ollama_client, query_engine
+    global db_client, ollama_client, query_engine, rag_retriever
 
     try:
         logger.info("🚀 Initializing API server...")
@@ -150,6 +159,16 @@ async def startup_event():
         # Initialize query engine
         query_engine = QueryEngine(db_client, ollama_client)
         logger.info("✅ Query engine initialized")
+
+        # Initialize RAG retriever
+        try:
+            rag_config = RagConfig.from_env()
+            rag_retriever = RagRetriever(db_client, ollama_client, rag_config)
+            chunk_count = rag_retriever.get_chunk_count()
+            logger.info(f"✅ RAG retriever initialized ({chunk_count} chunks indexed)")
+        except Exception as e:
+            logger.warning(f"⚠️ RAG retriever initialization failed (RAG features disabled): {e}")
+            rag_retriever = None
 
         logger.info("🎉 API server ready for remote connections!")
 
@@ -187,10 +206,14 @@ async def web_ui():
 async def api_info():
     """API 資訊"""
     model_name = ollama_client.config.model if ollama_client else "unknown"
+    rag_enabled = rag_retriever is not None
+    rag_chunks = rag_retriever.get_chunk_count() if rag_retriever else 0
     return {
         "message": "Ambulance Inventory Query API",
-        "version": "2.1.0",
+        "version": "2.5.0",
         "model": model_name,
+        "rag_enabled": rag_enabled,
+        "rag_chunks": rag_chunks,
         "docs": "/docs",
         "health": "/health",
         "web_ui": "/web"
@@ -211,6 +234,10 @@ async def health_check():
         # Check Ollama
         ollama_ok = ollama_client.test_connection() if ollama_client else False
 
+        # Check RAG
+        rag_enabled = rag_retriever is not None
+        rag_chunks = rag_retriever.get_chunk_count() if rag_retriever else 0
+
         model_name = ollama_client.config.model if ollama_client else "unknown"
 
         status = "healthy" if (db_ok and ollama_ok) else "unhealthy"
@@ -219,8 +246,10 @@ async def health_check():
             status=status,
             database=db_ok,
             ollama=ollama_ok,
+            rag_enabled=rag_enabled,
+            rag_chunks=rag_chunks,
             model=model_name,
-            version="2.1.0"
+            version="2.5.0"
         )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -233,15 +262,13 @@ async def query(request: QueryRequest):
     執行自然語言查詢
 
     接收自然語言問題，生成 SQL，執行查詢，返回回答
+    支援 RAG 模式：sql_only（僅 SQL）/ rag_only（僅型錄）/ hybrid（混合）
 
     Args:
-        request: 包含問題的查詢請求，可選指定模型和輸出模式
+        request: 包含問題的查詢請求，可選指定模型、輸出模式和 RAG 模式
 
     Returns:
-        QueryResponse: 包含 SQL、答案等資訊
-        - answer: LLM 生成的自然語言回答
-        - answer_formatted: 程式化表格格式（快速一致）
-        - results: 原始查詢結果（JSON）
+        QueryResponse: 包含 SQL、答案、RAG 上下文等資訊
     """
     start_time = time.time()
 
@@ -258,6 +285,8 @@ async def query(request: QueryRequest):
             answer_html=None,
             results=None,
             result_count=None,
+            rag_context=None,
+            rag_mode=request.rag_mode,
             model_used=ollama_client.config.model if ollama_client else None,
             use_llm_answer=request.use_llm_answer,
             elapsed_time=round(time.time() - start_time, 2),
@@ -266,9 +295,7 @@ async def query(request: QueryRequest):
         )
 
     try:
-        # Determine which model to use (from request or default)
-        # NOTE: We pass the model as a parameter, NOT modifying global state
-        # This ensures thread-safety for concurrent requests
+        # Determine which model to use
         default_model = ollama_client.config.model if ollama_client else "unknown"
         actual_model_used = default_model
 
@@ -280,16 +307,69 @@ async def query(request: QueryRequest):
             else:
                 logger.warning(f"⚠️ Requested model '{request.model}' not available, using default: {default_model}")
 
-        logger.info(f"📝 Received query: {request.question} (use_llm_answer={request.use_llm_answer}, model={actual_model_used})")
+        rag_mode = request.rag_mode or "sql_only"
+        logger.info(f"📝 Received query: {request.question} (rag_mode={rag_mode}, model={actual_model_used})")
 
-        # Execute query with mode - pass model as parameter (thread-safe)
+        # RAG retrieval (if needed)
+        rag_context = None
+        rag_context_list = None
+        if rag_mode in ("rag_only", "hybrid") and rag_retriever:
+            rag_results = rag_retriever.retrieve(
+                request.question,
+                top_k=request.rag_top_k
+            )
+            if rag_results:
+                rag_context_list = [
+                    {
+                        "source": r.source,
+                        "page": r.page,
+                        "chunk_index": r.chunk_index,
+                        "content": r.content,
+                        "score": r.score,
+                        "metadata": r.metadata
+                    }
+                    for r in rag_results
+                ]
+                logger.info(f"📚 RAG retrieved {len(rag_results)} chunks")
+
+        # RAG-only mode: skip SQL generation
+        if rag_mode == "rag_only":
+            llm_answer = None
+            if request.use_llm_answer and rag_context_list:
+                llm_answer = query_engine.generate_response(
+                    request.question,
+                    results=[],
+                    model=actual_model_used,
+                    rag_context=rag_context_list
+                )
+
+            elapsed = round(time.time() - start_time, 2)
+            return QueryResponse(
+                question=request.question,
+                sql="",
+                answer=llm_answer or "",
+                answer_formatted=None,
+                answer_html=None,
+                results=None,
+                result_count=0,
+                rag_context=rag_context_list,
+                rag_mode=rag_mode,
+                model_used=actual_model_used,
+                use_llm_answer=request.use_llm_answer,
+                elapsed_time=elapsed,
+                timing=TimingInfo(total=elapsed),
+                success=True,
+                error=None
+            )
+
+        # SQL query (sql_only or hybrid mode)
         sql, llm_answer, formatted_answer, html_table, raw_results, step_timing = query_engine.query_with_mode(
             request.question,
-            use_llm_answer=request.use_llm_answer,
+            use_llm_answer=False,  # We'll generate response separately for hybrid
             model=actual_model_used
         )
 
-        # Handle None values (Ollama might have failed silently)
+        # Handle SQL generation failure
         if sql is None:
             elapsed = round(time.time() - start_time, 2)
             return QueryResponse(
@@ -300,6 +380,8 @@ async def query(request: QueryRequest):
                 answer_html=None,
                 results=None,
                 result_count=None,
+                rag_context=rag_context_list,
+                rag_mode=rag_mode,
                 model_used=actual_model_used,
                 use_llm_answer=request.use_llm_answer,
                 elapsed_time=elapsed,
@@ -308,7 +390,16 @@ async def query(request: QueryRequest):
                     total=elapsed
                 ),
                 success=False,
-                error="Query failed - Ollama may not be responding. Check if Ollama service is running."
+                error="Query failed - Ollama may not be responding."
+            )
+
+        # Generate LLM response (with RAG context if hybrid)
+        if request.use_llm_answer:
+            llm_answer = query_engine.generate_response(
+                request.question,
+                results=raw_results or [],
+                model=actual_model_used,
+                rag_context=rag_context_list if rag_mode == "hybrid" else None
             )
 
         elapsed = round(time.time() - start_time, 2)
@@ -322,6 +413,8 @@ async def query(request: QueryRequest):
             answer_html=html_table,
             results=raw_results,
             result_count=len(raw_results) if raw_results else 0,
+            rag_context=rag_context_list,
+            rag_mode=rag_mode,
             model_used=actual_model_used,
             use_llm_answer=request.use_llm_answer,
             elapsed_time=elapsed,
@@ -346,6 +439,8 @@ async def query(request: QueryRequest):
             answer_html=None,
             results=None,
             result_count=None,
+            rag_context=None,
+            rag_mode=request.rag_mode,
             model_used=request.model or (ollama_client.config.model if ollama_client else None),
             use_llm_answer=request.use_llm_answer,
             elapsed_time=round(time.time() - start_time, 2),
@@ -427,6 +522,41 @@ async def get_demo_queries():
         "demo_queries": demo_queries,
         "usage": "使用 POST /query 端點執行這些查詢"
     }
+
+
+@app.get("/api/rag/status", tags=["RAG"])
+async def get_rag_status():
+    """
+    取得 RAG 系統狀態
+
+    Returns:
+        RAG 系統狀態資訊
+    """
+    if not rag_retriever:
+        return {
+            "enabled": False,
+            "chunk_count": 0,
+            "sources": [],
+            "message": "RAG system not initialized"
+        }
+
+    try:
+        chunk_count = rag_retriever.get_chunk_count()
+        sources = rag_retriever.get_sources()
+
+        return {
+            "enabled": True,
+            "chunk_count": chunk_count,
+            "sources": sources,
+            "embedding_model": rag_retriever.config.embedding_model,
+            "top_k": rag_retriever.config.top_k
+        }
+    except Exception as e:
+        logger.error(f"Failed to get RAG status: {e}")
+        return {
+            "enabled": False,
+            "error": str(e)
+        }
 
 
 @app.get("/api/models", response_model=ModelsResponse, tags=["Models"])

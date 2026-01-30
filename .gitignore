@@ -87,3 +87,6 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Documentation catalogs
+docs/catalogs/

@@ -48,7 +48,8 @@ INSERT INTO inventory VALUES
 ('AED-001', 'HeartStart HS1 半自動體外心臟除顫器', 'AED除顫器', 'Philips', 'HS1', '全自動分析、語音指導、8年待機', 15, 45000, '飛利浦醫療', NOW()),
 ('AED-002', 'ZOLL AED Plus 半自動體外除顫器', 'AED除顫器', 'ZOLL', 'AED Plus', 'CPR即時回饋、5年待機', 8, 52000, '宙斯醫療', NOW()),
 ('AED-003', 'Mindray BeneHeart C2 自動體外除顫器', 'AED除顫器', 'Mindray', 'C2', '雙語語音、6年待機、IP55防護', 12, 38000, '邁瑞醫療', NOW()),
-('AED-004', 'Cardiac Science Powerheart G5 AED', 'AED除顫器', 'Cardiac Science', 'G5', '全自動、RescueCoach技術', 5, 58000, '心臟科學', NOW());
+('AED-004', 'Cardiac Science Powerheart G5 AED', 'AED除顫器', 'Cardiac Science', 'G5', '全自動、RescueCoach技術', 5, 58000, '心臟科學', NOW()),
+('AED-005', 'Nihon Kohden AED-3100 自動體外除顫器', 'AED除顫器', 'Nihon Kohden', 'AED-3100', '雙相波技術、IP55防護等級、含ECG顯示', 6, 62000, '日本光電', NOW());
 
 -- 擔架設備
 INSERT INTO inventory VALUES
@@ -63,20 +64,23 @@ INSERT INTO inventory VALUES
 ('OXY-001', 'Luxfer L6X 鋁合金氧氣瓶 680L', '氧氣設備', 'Luxfer', 'L6X', '680公升容量、鋁合金、含壓力表', 20, 8500, '氧氣設備行', NOW()),
 ('OXY-002', 'Precision Medical EasyPulse POC 攜帶式氧氣濃縮機', '氧氣設備', 'Precision Medical', 'EasyPulse', '5段流量、電池續航8小時', 4, 68000, '精密醫療', NOW()),
 ('OXY-003', 'BLS 氧氣調節器（0-15 LPM）', '氧氣設備', '一般品牌', 'BLS-R15', '流量0-15L/min、含流量計', 25, 3200, '醫療器材行', NOW()),
-('OXY-004', '成人氧氣面罩（含儲氧袋）', '氧氣設備', '一般品牌', 'Adult-Mask', '拋棄式、含7呎導管', 100, 45, '醫療耗材', NOW());
+('OXY-004', '成人氧氣面罩（含儲氧袋）', '氧氣設備', '一般品牌', 'Adult-Mask', '拋棄式、含7呎導管', 100, 45, '醫療耗材', NOW()),
+('OXY-005', 'Invacare Platinum Mobile 攜帶式氧氣機', '氧氣設備', 'Invacare', 'Platinum Mobile', '脈衝式、電池續航10小時、FAA認證', 3, 75000, 'Invacare代理', NOW());
 
 -- 監視器
 INSERT INTO inventory VALUES
 ('MON-001', 'Mindray BeneView T5 病患監視器', '監視器', 'Mindray', 'T5', '5參數、12.1吋彩色螢幕、含ECG/SpO2/NIBP', 5, 85000, '邁瑞醫療', NOW()),
 ('MON-002', 'Masimo Rad-97 脈搏血氧儀', '監視器', 'Masimo', 'Rad-97', '連續SpO2監測、含rainbow技術', 8, 95000, 'Masimo台灣', NOW()),
 ('MON-003', 'GE Carescape V100 生命徵象監視器', '監視器', 'GE Healthcare', 'V100', '基本生命徵象、可攜式', 6, 72000, 'GE醫療', NOW()),
-('MON-004', 'Nonin 9560 手指式血氧計', '監視器', 'Nonin', '9560', '攜帶式、一鍵操作', 20, 8500, 'Nonin代理', NOW());
+('MON-004', 'Nonin 9560 手指式血氧計', '監視器', 'Nonin', '9560', '攜帶式、一鍵操作', 20, 8500, 'Nonin代理', NOW()),
+('MON-005', 'Philips IntelliVue X3 多參數監視器', '監視器', 'Philips', 'X3', '觸控螢幕、12導程ECG、可攜式', 4, 145000, '飛利浦醫療', NOW());
 
 -- 抽吸設備
 INSERT INTO inventory VALUES
 ('SUC-001', 'Laerdal LCSU 4 攜帶式抽吸機', '抽吸設備', 'Laerdal', 'LCSU 4', '電池供電、負壓可調、800ml容量', 7, 28000, 'Laerdal台灣', NOW()),
 ('SUC-002', 'Ambu Res-Cue Pump 手動抽吸器', '抽吸設備', 'Ambu', 'Res-Cue Pump', '手動式、免電池、300ml容量', 15, 3500, 'Ambu代理', NOW()),
-('SUC-003', 'DeVilbiss 7305 系列抽吸機', '抽吸設備', 'DeVilbiss', '7305D-613', '車載式、1200ml收集瓶', 5, 32000, 'DeVilbiss醫療', NOW());
+('SUC-003', 'DeVilbiss 7305 系列抽吸機', '抽吸設備', 'DeVilbiss', '7305D-613', '車載式、1200ml收集瓶', 5, 32000, 'DeVilbiss醫療', NOW()),
+('SUC-004', 'SSCOR VX-2 急救抽吸器', '抽吸設備', 'SSCOR', 'VX-2', '軍規等級、耐摔、-30°C可運作', 4, 45000, 'SSCOR代理', NOW());
 
 -- 呼吸設備
 INSERT INTO inventory VALUES
@@ -96,13 +100,17 @@ INSERT INTO inventory VALUES
 INSERT INTO inventory VALUES
 ('KIT-001', '創傷急救包（大型）', '急救包', '一般品牌', 'Trauma-L', '含繃帶/紗布/止血帶等', 15, 3500, '醫療耗材', NOW()),
 ('KIT-002', '燒燙傷急救包', '急救包', 'Water-Jel', 'Burn Kit', '含燒燙傷敷料、冷卻凝膠', 20, 2200, 'Water-Jel代理', NOW()),
-('KIT-003', 'CPR 口罩組（拋棄式）', '急救包', 'Laerdal', 'Pocket Mask', '單向閥、氧氣接頭', 40, 280, 'Laerdal台灣', NOW());
+('KIT-003', 'CPR 口罩組（拋棄式）', '急救包', 'Laerdal', 'Pocket Mask', '單向閥、氧氣接頭', 40, 280, 'Laerdal台灣', NOW()),
+('KIT-004', 'CAT止血帶急救包', '急救包', 'North American Rescue', 'CAT Gen7', '含CAT止血帶、止血敷料、急救卡', 35, 1800, 'NAR代理', NOW()),
+('KIT-005', '蛇咬傷急救包', '急救包', 'Sawyer', 'Extractor', '毒液抽取器、彈性繃帶、消毒液', 10, 950, '戶外用品', NOW());
 
 -- 車內設備
 INSERT INTO inventory VALUES
 ('VEH-001', '醫療冷藏箱（12V車用）', '車內設備', 'Dometic', 'CF-035', '35公升、-18°C~+10°C', 3, 22000, 'Dometic代理', NOW()),
 ('VEH-002', 'LED 車內照明燈組', '車內設備', '一般品牌', 'LED-Strip-5M', '5米防水燈條、12V', 8, 1800, '汽車配件', NOW()),
-('VEH-003', '醫療設備固定架（多功能）', '車內設備', '客製品牌', 'Multi-Rack', '鋁合金、可調式', 5, 8500, '車用改裝', NOW());
+('VEH-003', '醫療設備固定架（多功能）', '車內設備', '客製品牌', 'Multi-Rack', '鋁合金、可調式', 5, 8500, '車用改裝', NOW()),
+('VEH-004', '車用電源逆變器 2000W', '車內設備', 'BESTEK', 'MRI2013U', '12V轉110V、純正弦波、USB充電', 6, 5500, '汽車配件', NOW()),
+('VEH-005', '車載醫療廢棄物容器', '車內設備', 'Daniels', 'Sharpsmart', '防刺穿、防漏、可重複使用', 12, 2800, '環保醫材', NOW());
 
 -- 防護用品
 INSERT INTO inventory VALUES
@@ -114,7 +122,9 @@ INSERT INTO inventory VALUES
 -- 通訊設備
 INSERT INTO inventory VALUES
 ('COM-001', 'Motorola DP4400 數位無線電', '通訊設備', 'Motorola', 'DP4400', 'DMR數位、IP67防護', 10, 15000, 'Motorola代理', NOW()),
-('COM-002', 'Uniden BC75XLT 掃描器', '通訊設備', 'Uniden', 'BC75XLT', '300頻道、緊急頻道優先', 6, 4500, 'Uniden台灣', NOW());
+('COM-002', 'Uniden BC75XLT 掃描器', '通訊設備', 'Uniden', 'BC75XLT', '300頻道、緊急頻道優先', 6, 4500, 'Uniden台灣', NOW()),
+('COM-003', 'Hytera PD785G GPS數位無線電', '通訊設備', 'Hytera', 'PD785G', 'GPS定位、IP67防護、DMR相容', 8, 18500, 'Hytera代理', NOW()),
+('COM-004', '車載行動網路路由器 4G LTE', '通訊設備', 'Cradlepoint', 'IBR900', '雙SIM卡、Wi-Fi熱點、防震', 4, 32000, 'Cradlepoint代理', NOW());
 
 -- 更新時間戳記
 UPDATE inventory SET last_updated = NOW();
